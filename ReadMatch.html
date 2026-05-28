@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ReadMatch — Collaborative AI Book Recommendations</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <style>
+    html, body { margin: 0; padding: 0; background: #f0eee9; font-family: 'Inter', system-ui, sans-serif; }
+    #root { width: 100vw; height: 100vh; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <script type="text/babel" src="frames/ios-frame.jsx"></script>
+  <script type="text/babel" src="frames/design-canvas.jsx"></script>
+  <script type="text/babel" src="frames/tweaks-panel.jsx"></script>
+
+  <script type="text/babel" src="screens/shared.jsx"></script>
+  <script type="text/babel" src="screens/01-splash.jsx"></script>
+  <script type="text/babel" src="screens/02a-onb-identity.jsx"></script>
+  <script type="text/babel" src="screens/02b-onb-behavior.jsx"></script>
+  <script type="text/babel" src="screens/02c-onb-personality.jsx"></script>
+  <script type="text/babel" src="screens/02d-onb-collab.jsx"></script>
+  <script type="text/babel" src="screens/02e-onb-reveal.jsx"></script>
+  <script type="text/babel" src="screens/03-home.jsx"></script>
+  <script type="text/babel" src="screens/04-book.jsx"></script>
+  <script type="text/babel" src="screens/05-compatibility.jsx"></script>
+  <script type="text/babel" src="screens/06-vote.jsx"></script>
+  <script type="text/babel" src="screens/07-explain.jsx"></script>
+  <script type="text/babel" src="screens/08-personality.jsx"></script>
+  <script type="text/babel" src="screens/09-telegram.jsx"></script>
+  <script type="text/babel" src="screens/10-create-group.jsx"></script>
+  <script type="text/babel" src="screens/11-invite.jsx"></script>
+  <script type="text/babel" src="screens/12-group-settings.jsx"></script>
+  <script type="text/babel" src="screens/13-sync.jsx"></script>
+
+  <script type="text/babel" src="screens/web-shared.jsx"></script>
+  <script type="text/babel" src="screens/web-01-landing.jsx"></script>
+  <script type="text/babel" src="screens/web-02-home.jsx"></script>
+  <script type="text/babel" src="screens/web-03-home-ultra.jsx"></script>
+  <script type="text/babel" src="screens/web-04-home-tablet.jsx"></script>
+  <script type="text/babel" src="screens/web-05-compat.jsx"></script>
+  <script type="text/babel" src="screens/web-06-onboarding.jsx"></script>
+  <script type="text/babel" src="screens/web-07-notifications.jsx"></script>
+  <script type="text/babel" src="screens/web-08-personality.jsx"></script>
+  <script type="text/babel" src="screens/web-09-group.jsx"></script>
+
+  <script type="text/babel" data-presets="env,react">
+    const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+      "accent": "#D4FF3D",
+      "displayFont": "Bricolage Grotesque",
+      "ink": "#16102E",
+      "noise": true
+    }/*EDITMODE-END*/;
+
+    function Frame({ children, label, dark = false }) {
+      return (
+        <IOSDevice width={402} height={874} dark={dark}>
+          {children}
+        </IOSDevice>
+      );
+    }
+
+    function App() {
+      const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+
+      // Live re-binding of tokens
+      React.useEffect(() => {
+        const r = document.documentElement.style;
+        r.setProperty('--rm-lime', t.accent);
+        r.setProperty('--rm-ink', t.ink);
+      }, [t.accent, t.ink]);
+
+      const mk = (id, label, dark, el) => ({ id, label, w: 402, h: 874, dark, el });
+      const sections = [
+        { id: 'entry',   title: 'Entry',                 subtitle: 'Splash & first impression',
+          arts: [
+            mk('splash',     '01 · Splash',          true,  <ScreenSplash />),
+          ] },
+        { id: 'onboarding', title: 'Onboarding',          subtitle: '4 chapters → cinematic identity reveal',
+          arts: [
+            mk('onb-id',     '02 · Literary identity',  false, <ScreenOnb1 />),
+            mk('onb-beh',    '03 · Reading behavior',   false, <ScreenOnb2 />),
+            mk('onb-pers',   '04 · Reading personality',false, <ScreenOnb3 />),
+            mk('onb-col',    '05 · Collaborative setup',false, <ScreenOnb4 />),
+            mk('onb-rev',    '06 · Identity reveal',    true,  <ScreenOnbReveal />),
+          ] },
+        { id: 'groupsetup', title: 'Group management',    subtitle: 'Deeper tools (post-onboarding)',
+          arts: [
+            mk('create',    '07 · Create group',     false, <ScreenCreateGroup />),
+            mk('invite',    '08 · Invite members',   false, <ScreenInvite />),
+            mk('settings',  '09 · Group settings',   false, <ScreenGroupSettings />),
+            mk('sync',      '10 · Telegram sync',    true,  <ScreenSync />),
+          ] },
+        { id: 'core', title: 'Core experience',           subtitle: 'Home, recommendation cards, compatibility',
+          arts: [
+            mk('home',          '11 · Home dashboard',   false, <ScreenHome />),
+            mk('book',          '12 · Book detail',      false, <ScreenBook />),
+            mk('compatibility', '13 · Compatibility map',true,  <ScreenCompatibility />),
+          ] },
+        { id: 'decide', title: 'Group decision-making',  subtitle: 'Voting, swiping, explainable AI',
+          arts: [
+            mk('vote',     '14 · Group vote',       false, <ScreenVote />),
+            mk('explain',  '15 · AI explanation',   false, <ScreenExplain />),
+          ] },
+        { id: 'identity', title: 'Identity & companion', subtitle: 'Reading personality + Telegram bot surface',
+          arts: [
+            mk('personality', '16 · Reading identity', false, <ScreenPersonality />),
+            mk('telegram',    '17 · Bot companion',    false, <ScreenTelegram />),
+          ] },
+        { id: 'responsive', title: 'Responsive web', subtitle: 'Mobile → tablet → desktop → ultrawide',
+          arts: [
+            { id: 'web-landing', label: '18 · Landing (desktop — 1440)',      w: 1440, h: 2060, dark: false, el: <ScreenWebLanding /> },
+            { id: 'web-home',    label: '19 · Home dashboard (desktop)',       w: 1440, h: 900,  dark: false, el: <ScreenWebHome /> },
+            { id: 'web-tablet',  label: '20 · Home (tablet — 820)',           w: 820,  h: 1180, dark: false, el: <ScreenWebHomeTablet /> },
+            { id: 'web-ultra',   label: '21 · Home (ultrawide — 1920)',        w: 1920, h: 1080, dark: false, el: <ScreenWebHomeUltra /> },
+            { id: 'web-compat',  label: '22 · Compatibility workspace (desktop)',w:1440, h: 900,  dark: false, el: <ScreenWebCompat /> },
+            { id: 'web-onb',     label: '23 · Onboarding (split-screen desktop)', w: 1440, h: 900, dark: false, el: <ScreenWebOnboarding /> },
+            { id: 'web-notif',   label: '24 · Notifications & activity',         w: 1440, h: 900, dark: false, el: <ScreenWebNotifications /> },
+            { id: 'web-pers',    label: '25 · Reading identity dashboard',       w: 1440, h: 1100, dark: false, el: <ScreenWebPersonality /> },
+            { id: 'web-group',   label: '26 · Group management workspace',       w: 1440, h: 1000, dark: false, el: <ScreenWebGroup /> },
+          ] },
+      ];
+
+      return (
+        <React.Fragment>
+          <DesignCanvas>
+            {sections.map(sec => (
+              <DCSection key={sec.id} id={sec.id} title={sec.title} subtitle={sec.subtitle}>
+                {sec.arts.map(s => (
+                  <DCArtboard key={s.id} id={s.id} label={s.label} width={s.w} height={s.h}>
+                    {s.id.startsWith('web-') ? s.el : <Frame dark={s.dark}>{s.el}</Frame>}
+                  </DCArtboard>
+                ))}
+              </DCSection>
+            ))}
+          </DesignCanvas>
+
+          <TweaksPanel title="Tweaks">
+            <TweakSection label="Brand" />
+            <TweakColor
+              label="Accent (lime)"
+              value={t.accent}
+              options={['#D4FF3D', '#7C5BFF', '#FF7E6B', '#FBF6EB']}
+              onChange={(v) => setTweak('accent', v)}
+            />
+            <TweakColor
+              label="Ink"
+              value={t.ink}
+              options={['#16102E', '#0E0820', '#2B1B69', '#1A1428']}
+              onChange={(v) => setTweak('ink', v)}
+            />
+            <TweakSection label="Type" />
+            <TweakSelect
+              label="Display font"
+              value={t.displayFont}
+              options={['Bricolage Grotesque', 'Space Grotesk', 'Inter', 'Cabinet Grotesk']}
+              onChange={(v) => setTweak('displayFont', v)}
+            />
+            <TweakSection label="Surface" />
+            <TweakToggle
+              label="Subtle noise"
+              value={t.noise}
+              onChange={(v) => setTweak('noise', v)}
+            />
+          </TweaksPanel>
+        </React.Fragment>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

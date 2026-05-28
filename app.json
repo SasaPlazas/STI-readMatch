@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "ReadMatch",
+    "slug": "readmatch",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "icon": "./uploads/draw-7660199c-a855-47b9-870e-444c862be927.png",
+    "ios": {
+      "supportsTablet": true
+    }
+  }
+}
+
