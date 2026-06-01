@@ -33,7 +33,17 @@ export function CreateGroupScreen({ navigation }) {
   const [tg, setTg] = useState(true);
 
   return (
-    <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
+    <Screen
+      backgroundColor={colors.cream}
+      footer={
+        <Pressable onPress={() => navigation.navigate(routes.Invite)} style={styles.next}>
+          <Text style={styles.nextText}>Next · Invite members</Text>
+          <View style={styles.nextIcon}>
+            <Text style={styles.nextIconText}>→</Text>
+          </View>
+        </Pressable>
+      }
+    >
       <TopBar subtitle="Step 1 of 3" title={null} onBack={() => navigation.goBack()} right={<Pressable onPress={() => navigation.navigate(routes.Invite)}><Text style={styles.skip}>Skip</Text></Pressable>} />
 
       <Text style={styles.h1}>
@@ -142,14 +152,6 @@ export function CreateGroupScreen({ navigation }) {
         <Ring value={84} size={56} stroke={5} color={colors.purple} track="rgba(22,16,46,0.1)" textColor={colors.ink} />
       </View>
 
-      <View style={styles.footer}>
-        <Pressable onPress={() => navigation.navigate(routes.Invite)} style={styles.next}>
-          <Text style={styles.nextText}>Next · Invite members</Text>
-          <View style={styles.nextIcon}>
-            <Text style={styles.nextIconText}>→</Text>
-          </View>
-        </Pressable>
-      </View>
     </Screen>
   );
 }

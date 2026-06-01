@@ -1,5 +1,5 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { BookCover } from '../components/BookCover';
 import { RMButton } from '../components/RMButton';
 import { BOOKS } from '../data/sample';
@@ -30,10 +30,12 @@ export function SplashScreen({ navigation }) {
       </View>
 
       <View style={styles.cta}>
-        <RMButton title="Start matching" onPress={() => navigation.navigate(routes.OnbIdentity)} right={<View style={styles.arrow}><Text style={styles.arrowText}>→</Text></View>} />
-        <Text style={styles.signIn}>
-          Have an account? <Text style={styles.signInAccent}>Sign in</Text>
-        </Text>
+        <RMButton title="Start matching" onPress={() => navigation.navigate(routes.SignIn)} right={<View style={styles.arrow}><Text style={styles.arrowText}>→</Text></View>} />
+        <Pressable onPress={() => navigation.navigate(routes.SignIn)}>
+          <Text style={styles.signIn}>
+            Have an account? <Text style={styles.signInAccent}>Sign in</Text>
+          </Text>
+        </Pressable>
         <Text style={styles.allScreens} onPress={() => navigation.navigate(routes.AllScreens)}>
           Ver todas las pantallas
         </Text>

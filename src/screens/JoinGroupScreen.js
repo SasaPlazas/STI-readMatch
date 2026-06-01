@@ -1,0 +1,254 @@
+import { useRef, useState } from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Screen } from '../components/Screen';
+import { TopBar } from '../components/TopBar';
+import { Avatar } from '../components/Avatar';
+import { RMButton } from '../components/RMButton';
+import { MEMBERS } from '../data/sample';
+import { colors, radii } from '../theme/tokens';
+import { routes } from '../navigation/routes';
+
+// Grupos de ejemplo para simular resultados de búsqueda
+const MOCK_GROUPS = [
+  { id: 'g1', name: 'Page Turners',   members: 8,  mood: 'Fast & wild',          code: 'PT2024', avatars: MEMBERS.slice(0, 3) },
+  { id: 'g2', name: 'Deep Readers',   members: 4,  mood: 'Philosophical · slow',  code: 'DR9981', avatars: MEMBERS.slice(1, 4) },
+  { id: 'g3', name: 'Lit & Chill',    members: 12, mood: 'Cozy · emotional',      code: 'LC5500', avatars: MEMBERS.slice(0, 2) },
+];
+
+export function JoinGroupScreen({ navigation }) {
+  const [code, setCode] = useState('');
+  const [found, setFound] = useState(null);
+  const [joined, setJoined] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const inputRef = useRef(null);
+
+  function handleSearch() {
+    const trimmed = code.trim().toUpperCase();
+    if (trimmed.length < 4) { setError('Enter at least 4 characters'); return; }
+    setError('');
+    setLoading(true);
+    // Simula búsqueda — reemplazar con lógica real
+    setTimeout(() => {
+      const match = MOCK_GROUPS.find((g) => g.code === trimmed);
+      setLoading(false);
+      if (match) { setFound(match); }
+      else { setError('No group found with that code. Double-check and try again.'); setFound(null); }
+    }, 900);
+  }
+
+  function handleJoin() {
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setJoined(true);
+    }, 1000);
+  }
+
+  if (joined && found) {
+    return (
+      <Screen backgroundColor={colors.cream} footer={
+        <RMButton title="Go to Home →" variant="dark" onPress={() => navigation.navigate(routes.Home)} />
+      }>
+        <View style={styles.successWrap}>
+          <View style={styles.successIcon}>
+            <Text style={styles.successIconText}>✦</Text>
+          </View>
+          <Text style={styles.successTitle}>You're in!</Text>
+          <Text style={styles.successSub}>
+            Welcome to <Text style={{ fontWeight: '900', color: colors.purple }}>{found.name}</Text>. Your reading circle is waiting.
+          </Text>
+          <View style={styles.successCard}>
+            <Text style={styles.successGroupName}>{found.name}</Text>
+            <Text style={styles.successMood}>{found.mood}</Text>
+            <View style={styles.successAvatars}>
+              {found.avatars.map((m, i) => (
+                <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                  <Avatar m={m} size={32} />
+                </View>
+              ))}
+              <Text style={styles.successMemberCount}>+{found.members - found.avatars.length} more</Text>
+            </View>
+          </View>
+        </View>
+      </Screen>
+    );
+  }
+
+  return (
+    <Screen
+      backgroundColor={colors.cream}
+      footer={
+        found ? (
+          <RMButton title={loading ? 'Joining…' : `Join ${found.name} →`} variant="dark" onPress={handleJoin} />
+        ) : (
+          <RMButton title={loading ? 'Searching…' : 'Find group'} variant={code.length >= 4 ? 'dark' : 'ghost'} onPress={handleSearch} />
+        )
+      }
+    >
+      <TopBar title="Join a circle" onBack={() => navigation.goBack()} />
+
+      <View style={styles.header}>
+        <Text style={styles.kicker}>★ Find your people</Text>
+        <Text style={styles.title}>
+          Join a reading{'\n'}
+          <Text style={styles.titleItalic}>circle</Text>
+        </Text>
+        <Text style={styles.subtitle}>
+          Enter an invite code or ask a group member to share their link.
+        </Text>
+      </View>
+
+      {/* Code input */}
+      <View style={styles.inputCard}>
+        <Text style={styles.inputLabel}>INVITE CODE</Text>
+        <View style={styles.inputRow}>
+          <TextInput
+            ref={inputRef}
+            value={code}
+            onChangeText={(v) => { setCode(v.toUpperCase()); setFound(null); setError(''); }}
+            placeholder="e.g. SB2024"
+            placeholderTextColor="rgba(22,16,46,0.3)"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            maxLength={8}
+            style={styles.codeInput}
+            onSubmitEditing={handleSearch}
+          />
+          {code.length > 0 && (
+            <Pressable onPress={() => { setCode(''); setFound(null); setError(''); }} style={styles.clearBtn}>
+              <Text style={styles.clearBtnText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+        <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      </View>
+
+      {/* Found group preview */}
+      {found && (
+        <View style={styles.foundCard}>
+          <View style={styles.foundBadge}>
+            <Text style={styles.foundBadgeText}>{found.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.foundName}>{found.name}</Text>
+            <Text style={styles.foundMood}>{found.mood}</Text>
+            <View style={styles.foundMeta}>
+              <View style={styles.foundAvatars}>
+                {found.avatars.map((m, i) => (
+                  <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                    <Avatar m={m} size={22} />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.foundMembers}>{found.members} members</Text>
+            </View>
+          </View>
+          <View style={styles.foundCheck}>
+            <Text style={styles.foundCheckText}>✓</Text>
+          </View>
+        </View>
+      )}
+
+      {/* Divider */}
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or browse popular circles</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      {/* Browse list */}
+      <View style={styles.browseList}>
+        {MOCK_GROUPS.map((g) => (
+          <Pressable
+            key={g.id}
+            onPress={() => { setCode(g.code); setFound(g); setError(''); }}
+            style={[styles.browseRow, found?.id === g.id && styles.browseRowActive]}
+          >
+            <View style={[styles.browseBadge, found?.id === g.id && { backgroundColor: colors.purple }]}>
+              <Text style={[styles.browseBadgeText, found?.id === g.id && { color: colors.cream }]}>
+                {g.name.split(' ').map((w) => w[0]).join('').slice(0, 2)}
+              </Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.browseName}>{g.name}</Text>
+              <Text style={styles.browseMood}>{g.mood}</Text>
+            </View>
+            <View style={styles.browseMeta}>
+              <View style={styles.browseAvatars}>
+                {g.avatars.slice(0, 2).map((m, i) => (
+                  <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -6 }}>
+                    <Avatar m={m} size={20} />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.browseCount}>{g.members}</Text>
+            </View>
+          </Pressable>
+        ))}
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: { paddingHorizontal: 22, paddingBottom: 24 },
+  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: colors.purple, marginBottom: 8 },
+  title: { fontSize: 38, fontWeight: '900', color: colors.ink, letterSpacing: -1, lineHeight: 40 },
+  titleItalic: { fontStyle: 'italic', fontWeight: '400', color: colors.purple },
+  subtitle: { marginTop: 10, fontSize: 14, color: 'rgba(22,16,46,0.6)', fontWeight: '600', lineHeight: 19 },
+  inputCard: { marginHorizontal: 22, marginBottom: 12 },
+  inputLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, color: 'rgba(22,16,46,0.45)', marginBottom: 10 },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  codeInput: { flex: 1, fontSize: 32, fontWeight: '900', color: colors.ink, letterSpacing: 4, paddingVertical: 4 },
+  clearBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(22,16,46,0.08)', alignItems: 'center', justifyContent: 'center' },
+  clearBtnText: { fontSize: 13, color: 'rgba(22,16,46,0.5)', fontWeight: '900' },
+  codeUnderline: { height: 2, borderRadius: 1, backgroundColor: 'rgba(22,16,46,0.15)', marginTop: 6 },
+  codeUnderlineActive: { backgroundColor: colors.purple },
+  errorText: { marginTop: 8, fontSize: 12, fontWeight: '700', color: colors.coral },
+  foundCard: {
+    marginHorizontal: 22,
+    marginBottom: 20,
+    backgroundColor: colors.lime,
+    borderRadius: radii.xl,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: colors.ink,
+  },
+  foundBadge: { width: 48, height: 48, borderRadius: 14, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  foundBadgeText: { color: colors.lime, fontWeight: '900', fontSize: 16, letterSpacing: -0.5 },
+  foundName: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
+  foundMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.65)', marginTop: 2 },
+  foundMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
+  foundAvatars: { flexDirection: 'row' },
+  foundMembers: { fontSize: 11, fontWeight: '800', color: 'rgba(22,16,46,0.7)' },
+  foundCheck: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  foundCheckText: { color: colors.lime, fontWeight: '900', fontSize: 16 },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 22, marginBottom: 16 },
+  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(22,16,46,0.1)' },
+  dividerText: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', letterSpacing: 0.4 },
+  browseList: { paddingHorizontal: 22, gap: 10 },
+  browseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
+  browseRowActive: { borderColor: colors.purple, borderWidth: 1.5, backgroundColor: 'rgba(124,91,255,0.04)' },
+  browseBadge: { width: 42, height: 42, borderRadius: 13, backgroundColor: colors.lavender, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  browseBadgeText: { fontWeight: '900', color: colors.ink, fontSize: 14, letterSpacing: -0.3 },
+  browseName: { fontSize: 14, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
+  browseMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)', marginTop: 2 },
+  browseMeta: { alignItems: 'flex-end', gap: 4 },
+  browseAvatars: { flexDirection: 'row' },
+  browseCount: { fontSize: 11, fontWeight: '800', color: 'rgba(22,16,46,0.5)' },
+  successWrap: { flex: 1, paddingHorizontal: 22, paddingTop: 60, alignItems: 'center' },
+  successIcon: { width: 72, height: 72, borderRadius: 24, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  successIconText: { fontSize: 32, fontWeight: '900', color: colors.ink },
+  successTitle: { fontSize: 40, fontWeight: '900', color: colors.ink, letterSpacing: -1, textAlign: 'center' },
+  successSub: { marginTop: 12, fontSize: 15, color: 'rgba(22,16,46,0.65)', fontWeight: '600', textAlign: 'center', lineHeight: 22, paddingHorizontal: 10 },
+  successCard: { marginTop: 32, width: '100%', backgroundColor: colors.white, borderRadius: radii.xl, padding: 18, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
+  successGroupName: { fontSize: 22, fontWeight: '900', color: colors.ink, letterSpacing: -0.5 },
+  successMood: { fontSize: 13, fontWeight: '700', color: 'rgba(22,16,46,0.55)', marginTop: 4 },
+  successAvatars: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 },
+  successMemberCount: { fontSize: 12, fontWeight: '700', color: 'rgba(22,16,46,0.5)', marginLeft: 4 },
+});
