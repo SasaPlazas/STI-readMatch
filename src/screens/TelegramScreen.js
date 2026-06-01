@@ -51,8 +51,8 @@ export function TelegramScreen({ navigation }) {
               </Text>
             </View>
             <View style={styles.cardBtns}>
-              <Pressable style={styles.cardBtn} onPress={() => navigation.navigate(routes.Vote)}>
-                <Text style={[styles.cardBtnText, { color: colors.purple }]}>✦ I'm in</Text>
+              <Pressable style={styles.cardBtn} onPress={() => navigation.navigate(routes.Explain)}>
+                <Text style={[styles.cardBtnText, { color: colors.purple }]}>✦ See why</Text>
               </Pressable>
               <View style={styles.sep} />
               <Pressable style={styles.cardBtn} onPress={() => navigation.navigate(routes.Explain)}>

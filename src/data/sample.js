@@ -53,7 +53,6 @@ export const MEMBERS = [
   { id: 'm5', name: 'June', hue: colors.lavender, initial: 'J', tag: 'Romantic' },
 ];
 
-// Preferencias de cada miembro (alimentan el algoritmo de recomendación)
 export const MEMBER_PREFS = {
   m1: { tags: ['literary', 'memoir', 'essays'],       depth: 3, openness: 65 },
   m2: { tags: ['sci-fi', 'essays', 'philosophy'],     depth: 4, openness: 72 },
@@ -62,7 +61,6 @@ export const MEMBER_PREFS = {
   m5: { tags: ['romance', 'memoir', 'slice-of-life'], depth: 2, openness: 70 },
 };
 
-// Grupos a los que pertenece el usuario actual
 export const GROUPS = [
   {
     id: 'g1',
@@ -70,13 +68,24 @@ export const GROUPS = [
     initials: 'SB',
     color: colors.purple,
     mood: 'Curious & contemplative',
+    description: 'A group that reads slowly, underlines everything, and debates ideas for hours. No page limits — we go until the book feels lived-in.',
+    pace: 'One book / month',
+    commitment: 'High — deadlines respected',
     memberIds: ['m1', 'm2', 'm3', 'm4', 'm5'],
-    activities: [
-      { who: MEMBERS[2], action: 'voted',      target: '"Lemon, Lemon"',              icon: '♥', tone: colors.coral,  meta: '12m', screen: 'Vote' },
-      { who: MEMBERS[1], action: 'finished',   target: '"The Quiet Bureau"',           icon: '✓', tone: colors.lime,   meta: '1h',  screen: 'Book' },
-      { who: MEMBERS[3], action: 'highlighted',target: 'p. 84 · "small kindnesses"',  icon: '✎', tone: colors.purple, meta: '3h',  screen: 'Explain' },
+    currentBookId: 'b2',
+    pastBookIds: ['b4', 'b1', 'b5'],
+    genreDNA: [
+      { label: 'Essays',           pct: 38, color: colors.lime },
+      { label: 'Literary Fiction', pct: 28, color: colors.purple },
+      { label: 'Mystery',          pct: 20, color: colors.coral },
+      { label: 'Memoir',           pct: 14, color: colors.lavender },
     ],
-    stats: { pages: 1284, diversity: '0.78', mood: 'Curious &\ncontemplative' },
+    activities: [
+      { who: MEMBERS[2], action: 'voted',       target: '"Lemon, Lemon"',             icon: '♥', tone: colors.coral,  meta: '12m', screen: 'Vote' },
+      { who: MEMBERS[1], action: 'finished',    target: '"The Quiet Bureau"',          icon: '✓', tone: colors.lime,   meta: '1h',  screen: 'Book' },
+      { who: MEMBERS[3], action: 'highlighted', target: 'p. 84 · "small kindnesses"', icon: '✎', tone: colors.purple, meta: '3h',  screen: 'Explain' },
+    ],
+    stats: { pages: 1284, diversity: '0.78', mood: 'Curious &\ncontemplative', booksRead: 8, avgRating: 4.2 },
   },
   {
     id: 'g2',
@@ -84,13 +93,24 @@ export const GROUPS = [
     initials: 'PT',
     color: colors.coral,
     mood: 'Fast & wild',
+    description: 'Speed readers who love thrillers, plot twists and staying up until 2am. Two books a month, no excuses, no spoilers in the first 48h.',
+    pace: 'Two books / month',
+    commitment: 'Medium — flexible pace',
     memberIds: ['m1', 'm3', 'm5'],
-    activities: [
-      { who: MEMBERS[0], action: 'added',      target: '"Permanent Weather"',          icon: '+', tone: colors.lime,   meta: '30m', screen: 'Book' },
-      { who: MEMBERS[4], action: 'rated',      target: '"Field Notes on Joy" ★★★★',   icon: '★', tone: colors.coral,  meta: '2h',  screen: 'Book' },
-      { who: MEMBERS[2], action: 'suggested',  target: 'speed-reading session Fri.',   icon: '◎', tone: colors.purple, meta: '5h',  screen: 'Vote' },
+    currentBookId: 'b6',
+    pastBookIds: ['b3', 'b4'],
+    genreDNA: [
+      { label: 'Thriller',         pct: 42, color: colors.coral },
+      { label: 'Mystery',          pct: 30, color: colors.purple },
+      { label: 'Romance',          pct: 18, color: colors.lavender },
+      { label: 'Nonfiction',       pct: 10, color: colors.lime },
     ],
-    stats: { pages: 876, diversity: '0.61', mood: 'Fast &\nwild' },
+    activities: [
+      { who: MEMBERS[0], action: 'added',     target: '"Permanent Weather"',        icon: '+', tone: colors.lime,   meta: '30m', screen: 'Book' },
+      { who: MEMBERS[4], action: 'rated',     target: '"Field Notes" ★★★★',        icon: '★', tone: colors.coral,  meta: '2h',  screen: 'Book' },
+      { who: MEMBERS[2], action: 'suggested', target: 'speed-reading session Fri.', icon: '◎', tone: colors.purple, meta: '5h',  screen: 'Vote' },
+    ],
+    stats: { pages: 876, diversity: '0.61', mood: 'Fast &\nwild', booksRead: 14, avgRating: 3.9 },
   },
   {
     id: 'g3',
@@ -98,11 +118,89 @@ export const GROUPS = [
     initials: 'LC',
     color: colors.lime,
     mood: 'Cozy · emotional',
+    description: 'Low-pressure, high-emotion. We pick books that make us feel something and discuss them over voice notes. No strict deadlines.',
+    pace: 'One book / 6 weeks',
+    commitment: 'Low — come as you are',
     memberIds: ['m1', 'm2', 'm4'],
-    activities: [
-      { who: MEMBERS[1], action: 'shared note', target: '"The Glass Library" ch. 7',   icon: '✎', tone: colors.purple, meta: '1d',  screen: 'Explain' },
-      { who: MEMBERS[3], action: 'joined',       target: 'the group',                   icon: '◉', tone: colors.lime,   meta: '2d',  screen: 'Home' },
+    currentBookId: 'b1',
+    pastBookIds: ['b5', 'b3'],
+    genreDNA: [
+      { label: 'Memoir',           pct: 40, color: colors.coral },
+      { label: 'Literary Fiction', pct: 32, color: colors.purple },
+      { label: 'Romance',          pct: 18, color: colors.lavender },
+      { label: 'Essays',           pct: 10, color: colors.lime },
     ],
-    stats: { pages: 412, diversity: '0.54', mood: 'Cozy &\nemotional' },
+    activities: [
+      { who: MEMBERS[1], action: 'shared note', target: '"The Glass Library" ch. 7', icon: '✎', tone: colors.purple, meta: '1d', screen: 'Explain' },
+      { who: MEMBERS[3], action: 'joined',      target: 'the group',                 icon: '◉', tone: colors.lime,   meta: '2d', screen: 'Home' },
+    ],
+    stats: { pages: 412, diversity: '0.54', mood: 'Cozy &\nemotional', booksRead: 5, avgRating: 4.5 },
+  },
+];
+
+// Grupos "descubribles" para la pantalla Join (no pertenecen al usuario aún)
+export const DISCOVERABLE_GROUPS = [
+  {
+    id: 'dg1',
+    name: 'Deep Readers',
+    initials: 'DR',
+    code: 'DR9981',
+    color: colors.purple,
+    mood: 'Philosophical · slow',
+    description: 'Philosophy, dense prose and books you need a dictionary for. We read with intention and argue about everything.',
+    pace: 'One book / 6 weeks',
+    commitment: 'High — very active discussions',
+    memberIds: ['m2', 'm3', 'm4'],
+    currentBookId: 'b4',
+    pastBookIds: ['b2', 'b1', 'b6'],
+    genreDNA: [
+      { label: 'Philosophy',       pct: 45, color: colors.purple },
+      { label: 'Literary Fiction', pct: 30, color: colors.coral },
+      { label: 'Essays',           pct: 15, color: colors.lime },
+      { label: 'Nonfiction',       pct: 10, color: colors.lavender },
+    ],
+    stats: { pages: 2100, diversity: '0.82', mood: 'Dense &\nreflective', booksRead: 11, avgRating: 4.7 },
+  },
+  {
+    id: 'dg2',
+    name: 'Page Turners',
+    initials: 'PT',
+    code: 'PT2024',
+    color: colors.coral,
+    mood: 'Fast & wild',
+    description: 'Speed readers who love thrillers, plot twists and staying up until 2am. Two books a month, no excuses.',
+    pace: 'Two books / month',
+    commitment: 'Medium — flexible',
+    memberIds: ['m1', 'm3', 'm5'],
+    currentBookId: 'b6',
+    pastBookIds: ['b3', 'b4'],
+    genreDNA: [
+      { label: 'Thriller',   pct: 42, color: colors.coral },
+      { label: 'Mystery',    pct: 30, color: colors.purple },
+      { label: 'Romance',    pct: 18, color: colors.lavender },
+      { label: 'Nonfiction', pct: 10, color: colors.lime },
+    ],
+    stats: { pages: 876, diversity: '0.61', mood: 'Fast &\nwild', booksRead: 14, avgRating: 3.9 },
+  },
+  {
+    id: 'dg3',
+    name: 'Lit & Chill',
+    initials: 'LC',
+    code: 'LC5500',
+    color: colors.lime,
+    mood: 'Cozy · emotional',
+    description: 'Low-pressure, high-emotion. We pick books that make us feel something and discuss them over voice notes.',
+    pace: 'One book / 6 weeks',
+    commitment: 'Low — come as you are',
+    memberIds: ['m1', 'm2', 'm4'],
+    currentBookId: 'b1',
+    pastBookIds: ['b5', 'b3'],
+    genreDNA: [
+      { label: 'Memoir',           pct: 40, color: colors.coral },
+      { label: 'Literary Fiction', pct: 32, color: colors.purple },
+      { label: 'Romance',          pct: 18, color: colors.lavender },
+      { label: 'Essays',           pct: 10, color: colors.lime },
+    ],
+    stats: { pages: 412, diversity: '0.54', mood: 'Cozy &\nemotional', booksRead: 5, avgRating: 4.5 },
   },
 ];
