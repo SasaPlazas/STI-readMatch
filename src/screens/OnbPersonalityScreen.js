@@ -1,50 +1,134 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
-import { TopBar } from '../components/TopBar';
 import { RMButton } from '../components/RMButton';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
-const OPTIONS = [
-  { id: 'light', title: 'Light & fast', subtitle: 'page‑turners, beachable' },
-  { id: 'balanced', title: 'Balanced & immersive', subtitle: 'absorbed but moving' },
-  { id: 'deep', title: 'Deep & philosophical', subtitle: 'underlined, reread, list' },
-  { id: 'experimental', title: 'Experimental', subtitle: 'fragments, forms, friction' },
+const DEPTH_OPTIONS = [
+  { id: 'light',        label: 'Light & fast',        sub: 'page-turners, beachable',    icon: '☼', color: colors.lime },
+  { id: 'balanced',     label: 'Balanced & immersive', sub: 'absorbed but moving',        icon: '◐', color: colors.coral },
+  { id: 'deep',         label: 'Deep & philosophical', sub: 'underline, re-read, sit',    icon: '◓', color: colors.purple },
+  { id: 'experimental', label: 'Experimental',         sub: 'fragments, forms, friction', icon: '✦', color: colors.ink, dark: true },
 ];
 
+const VALUE_OPTIONS = [
+  { id: 'harmony',      label: 'Group harmony',        color: colors.lime },
+  { id: 'perspectives', label: 'New perspectives',     color: colors.purple },
+  { id: 'deep',         label: 'Deep discussions',     color: colors.coral },
+  { id: 'emo',          label: 'Emotional connection', color: colors.lavender },
+  { id: 'quality',      label: 'Literary quality',     color: colors.ink, dark: true },
+  { id: 'fun',          label: 'Fast & fun',           color: colors.cream, outline: true },
+];
+
+function getOpennessLabel(v) {
+  if (v < 30) return '"I know what I like"';
+  if (v < 60) return '"surprise me carefully"';
+  if (v < 85) return '"take me somewhere new"';
+  return '"destabilize me"';
+}
+
 export function OnbPersonalityScreen({ navigation }) {
-  const [picked, setPicked] = useState('deep');
+  const [depth, setDepth] = useState('deep');
+  const [openness, setOpenness] = useState(72);
+  const [values, setValues] = useState(() => new Set(['perspectives', 'deep']));
+
+  const sliderWidth = useRef(0);
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderGrant: (e) => {
+        const pct = Math.round(Math.min(100, Math.max(0, (e.nativeEvent.locationX / sliderWidth.current) * 100)));
+        setOpenness(pct);
+      },
+      onPanResponderMove: (e) => {
+        const pct = Math.round(Math.min(100, Math.max(0, (e.nativeEvent.locationX / sliderWidth.current) * 100)));
+        setOpenness(pct);
+      },
+    })
+  ).current;
+
+  function toggleValue(id) {
+    setValues((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   return (
-    <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
-      <TopBar subtitle="Chapter Three" title="Reading personality" onBack={() => navigation.goBack()} />
+    <Screen
+      backgroundColor={colors.cream}
+      footer={<RMButton title="Continue · Find your circle" variant="dark" onPress={() => navigation.navigate(routes.OnbCollab)} />}
+    >
+      <View style={styles.progress}>
+        <View style={styles.dots}>
+          {[1, 2, 3, 4].map((i) => (
+            <View key={i} style={[styles.dot, i <= 3 ? styles.dotOn : styles.dotOff]} />
+          ))}
+        </View>
+        <Text style={styles.stepLabel}>03 / 04</Text>
+      </View>
+
       <View style={styles.header}>
-        <Text style={styles.h2}>How deep do you like to go?</Text>
-        <Text style={styles.hint}>SLIDER · DIVE · DRIFT · TRANSFORM</Text>
+        <Text style={styles.kicker}>★ Chapter three</Text>
+        <Text style={styles.title}>
+          Reading{'\n'}
+          <Text style={styles.titleItalic}>personality</Text>
+        </Text>
       </View>
 
-      <View style={styles.options}>
-        {OPTIONS.map((o) => {
-          const active = picked === o.id;
-          return (
-            <Pressable key={o.id} onPress={() => setPicked(o.id)} style={[styles.option, active ? styles.optionActive : null]}>
-              <View style={[styles.radio, active ? styles.radioActive : null]} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.optionTitle, active ? styles.optionTitleActive : null]}>{o.title}</Text>
-                <Text style={[styles.optionSub, active ? styles.optionSubActive : null]}>{o.subtitle}</Text>
-              </View>
-            </Pressable>
-          );
-        })}
+      {/* Q1 — Depth */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>How deep do you like to go?</Text>
+        <Text style={styles.sectionHint}>SWIM · DIVE · DROWN · TRANSFORM</Text>
+        <View style={styles.depthList}>
+          {DEPTH_OPTIONS.map((o, i) => {
+            const on = depth === o.id;
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => setDepth(o.id)}
+                style={[
+                  styles.depthCard,
+                  { marginLeft: i * 12 },
+                  on && { backgroundColor: o.color, borderColor: colors.ink, borderWidth: 1.5 },
+                ]}
+              >
+                <Text style={[styles.depthIcon, on && o.dark && { color: colors.lime }]}>{o.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.depthLabel, on && o.dark && { color: colors.cream }]}>{o.label}</Text>
+                  <Text style={[styles.depthSub, on && o.dark && { color: 'rgba(251,246,235,0.7)' }]}>{o.sub}</Text>
+                </View>
+                {on && (
+                  <View style={[styles.check, { backgroundColor: colors.ink }]}>
+                    <Text style={[styles.checkText, { color: o.dark ? colors.lime : o.color }]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
-      <View style={styles.statCard}>
-        <Text style={styles.statTitle}>Discovery openness</Text>
-        <Text style={styles.statValue}>72%</Text>
-        <View style={styles.sliderTrack}>
-          <View style={styles.sliderFill} />
-          <View style={styles.sliderThumb} />
+      {/* Q2 — Openness slider */}
+      <View style={styles.sliderCard}>
+        <Text style={styles.sliderTitle}>Discovery openness</Text>
+        <Text style={styles.sliderSub}>SHAPES DIVERSITY & FAIRNESS</Text>
+        <View style={styles.sliderValueRow}>
+          <Text style={styles.sliderValue}>{openness}<Text style={styles.sliderPct}>%</Text></Text>
+          <Text style={styles.sliderQuote}>{getOpennessLabel(openness)}</Text>
+        </View>
+        <View
+          style={styles.sliderTrack}
+          onLayout={(e) => { sliderWidth.current = e.nativeEvent.layout.width; }}
+          {...panResponder.panHandlers}
+        >
+          <View style={styles.sliderTrackBg} />
+          <View style={[styles.sliderFill, { width: `${openness}%` }]} />
+          <View style={[styles.sliderThumb, { left: `${openness}%` }]} />
         </View>
         <View style={styles.sliderLabels}>
           <Text style={styles.sliderLabel}>FAMILIAR</Text>
@@ -52,144 +136,78 @@ export function OnbPersonalityScreen({ navigation }) {
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <RMButton title="Continue · Find your circle" onPress={() => navigation.navigate(routes.OnbCollab)} />
+      {/* Q3 — Collaborative values */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Reading with others, you value…</Text>
+        <Text style={styles.sectionHint}>POWERS GROUP COMPATIBILITY</Text>
+        <View style={styles.valueChips}>
+          {VALUE_OPTIONS.map((v) => {
+            const on = values.has(v.id);
+            return (
+              <Pressable
+                key={v.id}
+                onPress={() => toggleValue(v.id)}
+                style={[
+                  styles.valueChip,
+                  on && { backgroundColor: v.color, borderColor: colors.ink, borderWidth: 1.5 },
+                  v.outline && !on && { borderColor: 'rgba(22,16,46,0.12)' },
+                ]}
+              >
+                <Text style={[styles.valueChipText, on && v.dark && { color: colors.lime }]}>{v.label}</Text>
+                {on && (
+                  <View style={[styles.checkSmall, { backgroundColor: colors.ink }]}>
+                    <Text style={[styles.checkSmallText, { color: v.dark ? colors.lime : v.color }]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
+
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingBottom: 120,
-  },
-  header: {
-    paddingHorizontal: 22,
-    paddingTop: 6,
-    paddingBottom: 12,
-  },
-  h2: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.ink,
-  },
-  hint: {
-    marginTop: 6,
-    fontSize: 10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: 'rgba(22,16,46,0.45)',
-    fontWeight: '700',
-  },
-  options: {
-    paddingHorizontal: 22,
-    gap: 10,
-  },
-  option: {
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: 14,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.06)',
-  },
-  optionActive: {
-    backgroundColor: colors.purple,
-    borderColor: colors.purple,
-  },
-  radio: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
-    borderColor: 'rgba(22,16,46,0.25)',
-    backgroundColor: colors.white,
-  },
-  radioActive: {
-    borderColor: colors.lime,
-    backgroundColor: colors.lime,
-  },
-  optionTitle: {
-    fontWeight: '900',
-    color: colors.ink,
-    letterSpacing: -0.2,
-  },
-  optionTitleActive: {
-    color: colors.cream,
-  },
-  optionSub: {
-    marginTop: 2,
-    fontSize: 12,
-    color: 'rgba(22,16,46,0.6)',
-    fontWeight: '600',
-  },
-  optionSubActive: {
-    color: 'rgba(251,246,235,0.8)',
-  },
-  statCard: {
-    marginTop: 16,
-    marginHorizontal: 22,
-    backgroundColor: colors.ink,
-    borderRadius: radii.xl,
-    padding: 16,
-  },
-  statTitle: {
-    color: 'rgba(251,246,235,0.55)',
-    fontSize: 10,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    fontWeight: '800',
-  },
-  statValue: {
-    marginTop: 10,
-    fontSize: 40,
-    fontWeight: '900',
-    color: colors.lime,
-    letterSpacing: -1,
-  },
-  sliderTrack: {
-    marginTop: 14,
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  sliderFill: {
-    width: '72%',
-    height: '100%',
-    backgroundColor: colors.lime,
-  },
-  sliderThumb: {
-    position: 'absolute',
-    left: '70%',
-    top: -6,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: colors.lime,
-    borderWidth: 3,
-    borderColor: colors.ink,
-  },
-  sliderLabels: {
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  sliderLabel: {
-    fontSize: 10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: 'rgba(251,246,235,0.45)',
-    fontWeight: '800',
-  },
-  footer: {
-    position: 'absolute',
-    left: 22,
-    right: 22,
-    bottom: 26,
-  },
+  content: { paddingBottom: 16 },
+  progress: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
+  dots: { flexDirection: 'row', gap: 4 },
+  dot: { width: 32, height: 4, borderRadius: 2 },
+  dotOn: { backgroundColor: colors.ink },
+  dotOff: { backgroundColor: 'rgba(22,16,46,0.15)' },
+  stepLabel: { fontSize: 11, fontWeight: '700', letterSpacing: 1.4, color: 'rgba(22,16,46,0.5)' },
+  header: { paddingHorizontal: 22, paddingBottom: 22 },
+  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: colors.purple, marginBottom: 8 },
+  title: { fontSize: 40, fontWeight: '900', color: colors.ink, letterSpacing: -1, lineHeight: 42 },
+  titleItalic: { fontStyle: 'italic', fontWeight: '700', color: colors.purple },
+  section: { paddingHorizontal: 22, marginBottom: 24 },
+  sectionTitle: { fontSize: 18, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
+  sectionHint: { fontSize: 9, fontWeight: '800', letterSpacing: 1.2, color: 'rgba(22,16,46,0.4)', textTransform: 'uppercase', marginTop: 4, marginBottom: 14 },
+  depthList: { gap: 8 },
+  depthCard: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radii.md, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
+  depthIcon: { fontSize: 22, color: colors.ink, opacity: 0.65, width: 28, textAlign: 'center' },
+  depthLabel: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
+  depthSub: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)', marginTop: 2, letterSpacing: 0.2 },
+  check: { width: 22, height: 22, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  checkText: { fontSize: 12, fontWeight: '900' },
+  sliderCard: { marginHorizontal: 22, marginBottom: 24, backgroundColor: colors.ink, borderRadius: radii.xl, padding: 18, overflow: 'hidden' },
+  sliderTitle: { fontSize: 18, fontWeight: '900', color: colors.cream, letterSpacing: -0.3 },
+  sliderSub: { fontSize: 9, fontWeight: '800', letterSpacing: 1.4, color: 'rgba(212,255,61,0.7)', textTransform: 'uppercase', marginTop: 4 },
+  sliderValueRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginTop: 18 },
+  sliderValue: { fontSize: 56, fontWeight: '900', color: colors.lime, letterSpacing: -1.5, lineHeight: 58 },
+  sliderPct: { fontSize: 28, fontWeight: '900' },
+  sliderQuote: { fontSize: 13, fontStyle: 'italic', color: 'rgba(251,246,235,0.7)', fontWeight: '600', flexShrink: 1, textAlign: 'right', marginLeft: 10 },
+  sliderTrack: { height: 36, marginTop: 14, justifyContent: 'center', position: 'relative' },
+  sliderTrackBg: { position: 'absolute', left: 0, right: 0, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.1)' },
+  sliderFill: { position: 'absolute', left: 0, height: 8, borderRadius: 4, backgroundColor: colors.lime },
+  sliderThumb: { position: 'absolute', marginLeft: -14, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.lime, top: 4, elevation: 4 },
+  sliderLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 },
+  sliderLabel: { fontSize: 9, fontWeight: '800', color: 'rgba(251,246,235,0.4)', letterSpacing: 1.2, textTransform: 'uppercase' },
+  valueChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  valueChip: { borderRadius: radii.pill, paddingVertical: 11, paddingHorizontal: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.08)', flexDirection: 'row', alignItems: 'center', gap: 6 },
+  valueChipText: { fontSize: 13, fontWeight: '800', color: colors.ink },
+  checkSmall: { width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  checkSmallText: { fontSize: 9, fontWeight: '900' },
+  footer: { position: 'absolute', left: 22, right: 22, bottom: 26 },
 });
-

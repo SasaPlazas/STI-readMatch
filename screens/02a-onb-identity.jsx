@@ -154,7 +154,7 @@ function ScreenOnb1() {
           fontFamily: "'Bricolage Grotesque', system-ui", fontWeight: 700, fontSize: 17,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 8px 0 24px',
         }}>
-          <span>Continue · Behavior</span>
+          <span>Continue</span>
           <span style={{ width: 44, height: 44, borderRadius: 22, background: '#D4FF3D', color: '#16102E', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>→</span>
         </button>
       </div>

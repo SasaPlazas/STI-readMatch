@@ -83,8 +83,8 @@ export function CompatibilityScreen({ navigation }) {
         </View>
       </View>
 
-      <Pressable onPress={() => navigation.navigate(routes.Vote)} style={styles.cta}>
-        <Text style={styles.ctaText}>Go to voting →</Text>
+      <Pressable onPress={() => navigation.navigate(routes.Home)} style={styles.cta}>
+        <Text style={styles.ctaText}>Back to dashboard →</Text>
       </Pressable>
     </Screen>
   );

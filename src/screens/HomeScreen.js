@@ -1,424 +1,229 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
 import { Pill } from '../components/Pill';
 import { Ring } from '../components/Ring';
 import { Screen } from '../components/Screen';
-import { RMButton } from '../components/RMButton';
-import { BOOKS, MEMBERS } from '../data/sample';
+import { useAuth } from '../context/AuthContext';
+import { BOOKS, GROUPS, MEMBERS } from '../data/sample';
+import { getGroupRecommendations } from '../utils/recommendations';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
+// Simula si un grupo tiene novedades (en producción vendría del backend)
+const GROUP_UPDATES = { g1: 3, g2: 1, g3: 0 };
+
 export function HomeScreen({ navigation }) {
+  const { user } = useAuth();
+  const displayName = user?.name ?? 'Maya';
+
+  // Usamos el primer grupo como el activo para el hero
+  const heroGroup = GROUPS[0];
+  const recs = getGroupRecommendations(heroGroup.id, 1);
+  const topRec = recs[0];
+  const topBook = topRec?.book ?? BOOKS[1];
+  const topScore = topRec?.score ?? 89;
+  const topReasons = topRec?.reasons ?? [];
+
   return (
     <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
+
+      {/* ── Header ── */}
       <View style={styles.top}>
         <View style={{ flex: 1 }}>
           <Text style={styles.kicker}>Tuesday · 8:42</Text>
-          <Text style={styles.h1}>Hey, Maya ✦</Text>
+          <Text style={styles.h1}>Hey, {displayName} ✦</Text>
         </View>
         <Pressable onPress={() => navigation.navigate(routes.Personality)}>
           <Avatar m={MEMBERS[0]} size={44} />
         </Pressable>
       </View>
 
-      <View style={styles.groupRow}>
-        <Text style={styles.groupLabel}>Reading with</Text>
-        <View style={styles.avatars}>
-          {MEMBERS.slice(0, 5).map((m, i) => (
-            <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
-              <Avatar m={m} size={26} />
-            </View>
-          ))}
-        </View>
-        <Pill label="Slow Burners · 5" tone="ink" />
-      </View>
-
+      {/* ── Hero: this week's top pick ── */}
       <View style={styles.heroWrap}>
-        <LinearGradient colors={[colors.violet, colors.ink, colors.violet2]} start={{ x: 0.1, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.hero}>
+        <LinearGradient
+          colors={[colors.violet, colors.ink, colors.violet2]}
+          start={{ x: 0.1, y: 0 }}
+          end={{ x: 0.9, y: 1 }}
+          style={styles.hero}
+        >
           <View style={styles.heroTags}>
-            <Pill label="★ This week's match" tone="lime" />
-            <Pill label="UPDATED 2H AGO" tone="glass" />
+            <Pill label={`★ ${heroGroup.name} · this week`} tone="lime" />
+            <Pill label="AUTO-GENERATED" tone="glass" />
           </View>
 
           <View style={styles.heroRow}>
             <Pressable onPress={() => navigation.navigate(routes.Book)}>
-              <BookCover book={BOOKS[1]} w={120} h={170} tilt={-3} />
+              <BookCover book={topBook} w={110} h={156} tilt={-3} />
             </Pressable>
-            <View style={{ flex: 1, justifyContent: 'space-between' }}>
-              <Ring value={89} size={62} stroke={6} color={colors.lime} textColor={colors.cream} />
-              <View>
-                <Text style={styles.heroTitle}>Soft{'\n'}Algorithms</Text>
-                <Text style={styles.heroAuthor}>Yuki Tanabe</Text>
+            <View style={styles.heroMeta}>
+              <Ring value={topScore} size={58} stroke={6} color={colors.lime} textColor={colors.cream} />
+              <View style={styles.heroInfo}>
+                <Text style={styles.heroTitle}>{topBook.title}</Text>
+                <Text style={styles.heroAuthor}>{topBook.author}</Text>
+                <Text style={styles.heroGenre}>{topBook.genre}</Text>
               </View>
             </View>
           </View>
 
-          <View style={styles.why}>
-            <View style={styles.whyHeader}>
-              <View style={styles.spark}>
-                <Text style={styles.sparkText}>✦</Text>
+          {topReasons.length > 0 && (
+            <View style={styles.why}>
+              <View style={styles.whySpark}>
+                <Text style={styles.whySparkText}>✦</Text>
               </View>
-              <Text style={styles.whyKicker}>Why this matches</Text>
+              <Text style={styles.whyText}>{topReasons.join(' · ')}</Text>
             </View>
-            <Text style={styles.whyText}>
-              Balances <Text style={{ color: colors.lime, fontWeight: '900' }}>Iris</Text>' dark‑academia streak with{' '}
-              <Text style={{ color: colors.coral, fontWeight: '900' }}>Theo</Text>'s essay habit — and lands inside everyone's complexity band.
-            </Text>
-          </View>
+          )}
 
-          <View style={styles.heroActions}>
-            <RMButton title="I'm in →" onPress={() => navigation.navigate(routes.Vote)} style={{ flex: 1, height: 48 }} />
-            <RMButton title="See alternates" variant="ghost" onPress={() => navigation.navigate(routes.Compatibility)} style={[{ flex: 1, height: 48 }, styles.heroAlt]} />
-          </View>
+          <Pressable
+            onPress={() => navigation.navigate(routes.GroupDetail, { groupId: heroGroup.id })}
+            style={styles.heroAction}
+          >
+            <Text style={styles.heroActionText}>See all picks for this group →</Text>
+          </Pressable>
         </LinearGradient>
       </View>
 
-      <Pressable onPress={() => navigation.navigate(routes.Telegram)} style={styles.tgCard}>
-        <View style={styles.tgIcon}>
-          <Text style={styles.tgIconText}>↗</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <View style={styles.tgTitleRow}>
-            <Text style={styles.tgTitle}>Telegram mirror</Text>
-            <View style={styles.tgLive}>
-              <Text style={styles.tgLiveText}>● LIVE</Text>
-            </View>
+
+      {/* ── My circles ── */}
+      <View style={styles.circlesHeader}>
+        <Text style={styles.circlesTitle}>My circles</Text>
+        <Pressable onPress={() => navigation.navigate(routes.CreateGroup)}>
+          <Text style={styles.circlesAdd}>+ New</Text>
+        </Pressable>
+      </View>
+
+      <View style={styles.circlesList}>
+        {GROUPS.map((g) => {
+          const members = g.memberIds.map((id) => MEMBERS.find((m) => m.id === id)).filter(Boolean);
+          const updates = GROUP_UPDATES[g.id] ?? 0;
+          const groupRecs = getGroupRecommendations(g.id, 1);
+          const currentBook = groupRecs[0]?.book ?? BOOKS.find((b) => b.id === g.currentBookId);
+
+          return (
+            <Pressable
+              key={g.id}
+              onPress={() => navigation.navigate(routes.GroupDetail, { groupId: g.id })}
+              style={styles.circleCard}
+            >
+              {/* Badge */}
+              <View style={[styles.circleBadge, { backgroundColor: g.color }]}>
+                <Text style={styles.circleBadgeText}>{g.initials}</Text>
+              </View>
+
+              {/* Info */}
+              <View style={styles.circleInfo}>
+                <View style={styles.circleNameRow}>
+                  <Text style={styles.circleName}>{g.name}</Text>
+                  {updates > 0 && (
+                    <View style={styles.updateBadge}>
+                      <Text style={styles.updateBadgeText}>{updates} new</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.circleMeta}>{g.mood} · {members.length} members</Text>
+                <View style={styles.circleAvatars}>
+                  {members.slice(0, 4).map((m, i) => (
+                    <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -8 }}>
+                      <Avatar m={m} size={20} />
+                    </View>
+                  ))}
+                </View>
+              </View>
+
+              {/* Current book thumbnail */}
+              {currentBook && (
+                <BookCover book={currentBook} w={38} h={54} tilt={2} />
+              )}
+
+              <Text style={styles.circleArrow}>›</Text>
+            </Pressable>
+          );
+        })}
+
+        {/* Join another circle */}
+        <Pressable
+          onPress={() => navigation.navigate(routes.JoinGroup)}
+          style={styles.joinCard}
+        >
+          <View style={styles.joinIcon}>
+            <Text style={styles.joinIconText}>◎</Text>
           </View>
-          <Text style={styles.tgSub}>3 new votes · synced 6m ago</Text>
-        </View>
-        <View style={styles.tgOpen}>
-          <Text style={styles.tgOpenText}>Open ↗</Text>
-        </View>
-      </Pressable>
-
-      <View style={styles.statsHeader}>
-        <Text style={styles.statsTitle}>This week, together</Text>
-        <Text style={styles.statsLive}>LIVE</Text>
+          <Text style={styles.joinText}>Join another circle</Text>
+          <Text style={styles.circleArrow}>›</Text>
+        </Pressable>
       </View>
 
-      <View style={styles.statsGrid}>
-        <View style={[styles.statCard, { backgroundColor: colors.lime }]}>
-          <Text style={[styles.statKicker, { color: 'rgba(22,16,46,0.7)' }]}>Group mood</Text>
-          <Text style={[styles.statBig, { color: colors.ink }]}>Curious &{'\n'}contemplative</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.coral }]}>
-          <Text style={[styles.statKicker, { color: 'rgba(22,16,46,0.65)' }]}>Pages read</Text>
-          <Text style={[styles.statNum, { color: colors.ink }]}>1,284</Text>
-        </View>
-        <View style={[styles.statCard, { backgroundColor: colors.ink }]}>
-          <Text style={[styles.statKicker, { color: 'rgba(251,246,235,0.55)' }]}>Diversity</Text>
-          <Text style={[styles.statNum, { color: colors.lime }]}>0.78</Text>
-        </View>
-      </View>
-
-      <View style={styles.activityHeader}>
-        <Text style={styles.activityTitle}>Group activity</Text>
-      </View>
-      <View style={styles.feed}>
-        {[
-          { who: MEMBERS[2], action: 'voted', target: '"Lemon, Lemon"', icon: '♥', tone: colors.coral, meta: '12m', to: routes.Vote },
-          { who: MEMBERS[1], action: 'finished', target: '"The Quiet Bureau"', icon: '✓', tone: colors.lime, meta: '1h', to: routes.Book },
-          { who: MEMBERS[3], action: 'highlighted', target: 'p. 84 · "small kindnesses"', icon: '✎', tone: colors.purple, meta: '3h', to: routes.Explain },
-        ].map((a, i) => (
-          <Pressable key={i} onPress={() => navigation.navigate(a.to)} style={styles.feedRow}>
-            <Avatar m={a.who} size={36} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.feedText} numberOfLines={2}>
-                <Text style={{ fontWeight: '900' }}>{a.who.name}</Text> {a.action} <Text style={{ color: colors.inkSoft }}>{a.target}</Text>
-              </Text>
-              <Text style={styles.feedMeta}>{a.meta} ago</Text>
-            </View>
-            <View style={[styles.feedIcon, { backgroundColor: a.tone }]}>
-              <Text style={styles.feedIconText}>{a.icon}</Text>
-            </View>
-          </Pressable>
-        ))}
-      </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: {
-    paddingBottom: 110,
-  },
+  content: { paddingBottom: 32 },
   top: {
-    paddingTop: 26,
-    paddingHorizontal: 22,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingBottom: 18,
+    paddingTop: 26, paddingHorizontal: 22,
+    flexDirection: 'row', alignItems: 'center', gap: 12, paddingBottom: 20,
   },
-  kicker: {
-    fontSize: 11,
-    color: 'rgba(22,16,46,0.5)',
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  h1: {
-    marginTop: 4,
-    fontSize: 32,
-    fontWeight: '900',
-    color: colors.ink,
-    letterSpacing: -0.8,
-  },
-  groupRow: {
-    paddingHorizontal: 22,
-    paddingBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  groupLabel: {
-    fontSize: 11,
-    color: 'rgba(22,16,46,0.5)',
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    fontWeight: '700',
-  },
-  avatars: {
-    flexDirection: 'row',
-  },
-  heroWrap: {
-    paddingHorizontal: 22,
-  },
-  hero: {
-    borderRadius: 28,
-    padding: 18,
-    overflow: 'hidden',
-  },
-  heroTags: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  heroRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 18,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.cream,
-    lineHeight: 25,
-    letterSpacing: -0.5,
-  },
-  heroAuthor: {
-    marginTop: 6,
-    color: 'rgba(251,246,235,0.75)',
-    fontStyle: 'italic',
-    fontWeight: '600',
-  },
+  kicker: { fontSize: 11, color: 'rgba(22,16,46,0.5)', letterSpacing: 1.6, textTransform: 'uppercase', fontWeight: '700' },
+  h1: { marginTop: 4, fontSize: 32, fontWeight: '900', color: colors.ink, letterSpacing: -0.8 },
+  heroWrap: { paddingHorizontal: 22 },
+  hero: { borderRadius: 28, padding: 18, overflow: 'hidden' },
+  heroTags: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
+  heroRow: { flexDirection: 'row', gap: 16, marginTop: 18, alignItems: 'flex-start' },
+  heroMeta: { flex: 1, gap: 14 },
+  heroInfo: { gap: 4 },
+  heroTitle: { fontSize: 22, fontWeight: '900', color: colors.cream, letterSpacing: -0.5, lineHeight: 24 },
+  heroAuthor: { fontSize: 13, fontStyle: 'italic', color: 'rgba(251,246,235,0.75)', fontWeight: '600' },
+  heroGenre: { fontSize: 10, fontWeight: '800', color: 'rgba(251,246,235,0.5)', letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 2 },
   why: {
-    marginTop: 14,
-    padding: 14,
-    borderRadius: radii.md,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    marginTop: 14, flexDirection: 'row', alignItems: 'flex-start', gap: 10,
+    padding: 14, borderRadius: radii.md,
+    backgroundColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)',
   },
-  whyHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
+  whySpark: { width: 22, height: 22, borderRadius: 6, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 },
+  whySparkText: { color: colors.ink, fontWeight: '900', fontSize: 12 },
+  whyText: { flex: 1, color: 'rgba(251,246,235,0.92)', fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  heroAction: {
+    marginTop: 14, height: 48, borderRadius: radii.pill,
+    backgroundColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  spark: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
+  heroActionText: { color: colors.cream, fontWeight: '800', fontSize: 14, letterSpacing: -0.1 },
+  statsRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 22, marginTop: 14 },
+  statsCol: { flex: 1, gap: 10 },
+  statCard: { flex: 1, borderRadius: radii.lg, padding: 14 },
+  statKicker: { fontSize: 9, letterSpacing: 1.6, textTransform: 'uppercase', fontWeight: '800', color: 'rgba(22,16,46,0.7)' },
+  statBig: { marginTop: 8, fontSize: 17, fontWeight: '900', letterSpacing: -0.4, lineHeight: 20 },
+  statNum: { marginTop: 6, fontSize: 26, fontWeight: '900', letterSpacing: -0.8 },
+  circlesHeader: {
+    paddingHorizontal: 22, paddingTop: 28, paddingBottom: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
   },
-  sparkText: {
-    color: colors.ink,
-    fontWeight: '900',
+  circlesTitle: { fontSize: 22, fontWeight: '900', color: colors.ink, letterSpacing: -0.4 },
+  circlesAdd: { fontSize: 14, fontWeight: '900', color: colors.purple },
+  circlesList: { paddingHorizontal: 22, gap: 10 },
+  circleCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.white, borderRadius: radii.xl, padding: 14,
+    borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)',
   },
-  whyKicker: {
-    color: colors.lime,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    fontSize: 11,
-    fontWeight: '800',
+  circleBadge: { width: 48, height: 48, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  circleBadgeText: { color: colors.ink, fontWeight: '900', fontSize: 17, letterSpacing: -0.4 },
+  circleInfo: { flex: 1, gap: 4 },
+  circleNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  circleName: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
+  updateBadge: { borderRadius: radii.pill, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: colors.lime },
+  updateBadgeText: { fontSize: 10, fontWeight: '900', color: colors.ink, letterSpacing: 0.3 },
+  circleMeta: { fontSize: 12, fontWeight: '700', color: 'rgba(22,16,46,0.5)' },
+  circleAvatars: { flexDirection: 'row', marginTop: 4 },
+  circleArrow: { fontSize: 22, fontWeight: '900', color: 'rgba(22,16,46,0.3)', flexShrink: 0 },
+  joinCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.cream, borderRadius: radii.xl, padding: 14,
+    borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(22,16,46,0.2)',
   },
-  whyText: {
-    color: 'rgba(251,246,235,0.92)',
-    fontSize: 13,
-    lineHeight: 18,
-    fontWeight: '600',
-  },
-  heroActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 12,
-  },
-  heroAlt: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderColor: 'rgba(255,255,255,0.25)',
-  },
-  tgCard: {
-    marginTop: 14,
-    marginHorizontal: 22,
-    backgroundColor: colors.white,
-    borderRadius: radii.lg,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.06)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  tgIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tgIconText: {
-    color: colors.lime,
-    fontWeight: '900',
-  },
-  tgTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tgTitle: {
-    fontWeight: '900',
-    color: colors.ink,
-  },
-  tgLive: {
-    paddingVertical: 2,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: '#E8F8D5',
-  },
-  tgLiveText: {
-    color: '#3F6E12',
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 0.6,
-  },
-  tgSub: {
-    marginTop: 4,
-    fontSize: 10,
-    letterSpacing: 0.8,
-    color: 'rgba(22,16,46,0.5)',
-    fontWeight: '700',
-  },
-  tgOpen: {
-    paddingVertical: 7,
-    paddingHorizontal: 11,
-    borderRadius: 999,
-    backgroundColor: colors.lime,
-  },
-  tgOpenText: {
-    color: colors.ink,
-    fontWeight: '900',
-    fontSize: 11,
-  },
-  statsHeader: {
-    marginTop: 20,
-    paddingHorizontal: 22,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  statsTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.ink,
-    letterSpacing: -0.3,
-  },
-  statsLive: {
-    fontSize: 10,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    color: 'rgba(22,16,46,0.45)',
-    fontWeight: '800',
-  },
-  statsGrid: {
-    paddingHorizontal: 22,
-    gap: 10,
-  },
-  statCard: {
-    borderRadius: radii.lg,
-    padding: 16,
-  },
-  statKicker: {
-    fontSize: 10,
-    letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    fontWeight: '800',
-  },
-  statBig: {
-    marginTop: 10,
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.6,
-    lineHeight: 24,
-  },
-  statNum: {
-    marginTop: 8,
-    fontSize: 30,
-    fontWeight: '900',
-    letterSpacing: -0.8,
-  },
-  activityHeader: {
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 12,
-  },
-  activityTitle: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: colors.ink,
-    letterSpacing: -0.3,
-  },
-  feed: {
-    paddingHorizontal: 22,
-    gap: 10,
-  },
-  feedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-    borderRadius: radii.md,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.05)',
-  },
-  feedText: {
-    fontSize: 13,
-    color: colors.ink,
-    lineHeight: 17,
-  },
-  feedMeta: {
-    marginTop: 4,
-    fontSize: 10,
-    color: 'rgba(22,16,46,0.45)',
-    letterSpacing: 0.8,
-    fontWeight: '700',
-  },
-  feedIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  feedIconText: {
-    fontWeight: '900',
-    color: colors.ink,
-  },
+  joinIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: colors.mist, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  joinIconText: { fontSize: 22, color: colors.purple },
+  joinText: { flex: 1, fontSize: 15, fontWeight: '800', color: 'rgba(22,16,46,0.55)' },
 });
-

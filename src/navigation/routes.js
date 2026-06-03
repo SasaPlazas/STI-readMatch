@@ -1,5 +1,7 @@
 export const routes = {
   Splash: 'Splash',
+  SignIn: 'SignIn',
+  CreateAccount: 'CreateAccount',
   OnbIdentity: 'OnbIdentity',
   OnbBehavior: 'OnbBehavior',
   OnbPersonality: 'OnbPersonality',
@@ -8,11 +10,13 @@ export const routes = {
   Home: 'Home',
   Book: 'Book',
   Compatibility: 'Compatibility',
-  Vote: 'Vote',
   Explain: 'Explain',
   Personality: 'Personality',
   Telegram: 'Telegram',
   CreateGroup: 'CreateGroup',
+  JoinGroup: 'JoinGroup',
+  GroupDetail: 'GroupDetail',
+  GroupPreview: 'GroupPreview',
   Invite: 'Invite',
   GroupSettings: 'GroupSettings',
   Sync: 'Sync',
@@ -21,6 +25,8 @@ export const routes = {
 
 export const routeOrder = [
   routes.Splash,
+  routes.SignIn,
+  routes.CreateAccount,
   routes.OnbIdentity,
   routes.OnbBehavior,
   routes.OnbPersonality,
@@ -29,13 +35,12 @@ export const routeOrder = [
   routes.Home,
   routes.Book,
   routes.Compatibility,
-  routes.Vote,
   routes.Explain,
   routes.Personality,
   routes.Telegram,
   routes.CreateGroup,
+  routes.JoinGroup,
   routes.Invite,
   routes.GroupSettings,
   routes.Sync,
 ];
-

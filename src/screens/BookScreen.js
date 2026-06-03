@@ -12,7 +12,15 @@ export function BookScreen({ navigation }) {
   const book = BOOKS[1];
 
   return (
-    <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
+    <Screen
+      backgroundColor={colors.cream}
+      footer={
+        <View style={{ gap: 10 }}>
+          <RMButton title="See compatibility →" onPress={() => navigation.navigate(routes.Compatibility)} />
+          <RMButton title="Read AI reasoning" variant="dark" onPress={() => navigation.navigate(routes.Explain)} />
+        </View>
+      }
+    >
       <TopBar subtitle={`Book · ${book.genre}`} title={book.title} onBack={() => navigation.goBack()} />
 
       <View style={styles.hero}>
@@ -48,10 +56,6 @@ export function BookScreen({ navigation }) {
         </View>
       </View>
 
-      <View style={styles.footer}>
-        <RMButton title="See compatibility →" onPress={() => navigation.navigate(routes.Compatibility)} />
-        <RMButton title="Read AI reasoning" variant="dark" onPress={() => navigation.navigate(routes.Explain)} style={{ marginTop: 10 }} />
-      </View>
     </Screen>
   );
 }
