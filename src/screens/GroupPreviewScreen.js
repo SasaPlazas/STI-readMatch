@@ -6,7 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
 import { Ring } from '../components/Ring';
 import { RMButton } from '../components/RMButton';
-import { BOOKS, MEMBERS, MEMBER_PREFS } from '../data/sample';
+import { BOOKS, DISCOVERABLE_GROUPS, GROUPS, MEMBERS, MEMBER_PREFS } from '../data/sample';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
@@ -27,7 +27,11 @@ function calcCompatibility(group) {
 }
 
 export function GroupPreviewScreen({ navigation, route }) {
-  const { group } = route.params;
+  const { groupId } = route.params ?? {};
+  const group =
+    [...DISCOVERABLE_GROUPS, ...GROUPS].find((g) => g.id === groupId) ??
+    DISCOVERABLE_GROUPS[0] ??
+    GROUPS[0];
   const [joining, setJoining] = useState(false);
   const [joined, setJoined] = useState(false);
 

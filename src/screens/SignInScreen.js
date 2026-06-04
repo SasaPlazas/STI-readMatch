@@ -1,30 +1,33 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
-export function SignInScreen({ navigation }) {
+export function SignInScreen({ navigation, route }) {
   const { signIn } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(route?.params?.email ?? '');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState(route?.params?.info ?? '');
 
   const canSubmit = email.length > 3 && password.length >= 6;
 
-  function handleSignIn() {
-    if (!canSubmit) return;
+  async function handleSignIn() {
+    if (!canSubmit || loading) return;
     setError('');
     setLoading(true);
-    // Simula login — reemplazar con lógica real
-    setTimeout(() => {
+    try {
+      const { completedOnboarding } = await signIn({ email, password });
+      navigation.reset({ index: 0, routes: [{ name: completedOnboarding ? routes.Home : routes.OnbIdentity }] });
+    } catch (e) {
+      setError(e?.message || 'No se pudo iniciar sesión');
+    } finally {
       setLoading(false);
-      signIn({ email, name: email.split('@')[0] });
-      // RootNavigator redirige automáticamente al AppStack al detectar user
-    }, 1200);
+    }
   }
 
   return (
@@ -74,7 +77,7 @@ export function SignInScreen({ navigation }) {
             <View style={styles.fieldWrap}>
               <View style={styles.fieldLabelRow}>
                 <Text style={styles.fieldLabel}>Password</Text>
-                <Pressable onPress={() => navigation.navigate(routes.ForgotPassword)}>
+                <Pressable onPress={() => null}>
                   <Text style={styles.forgotLink}>Forgot?</Text>
                 </Pressable>
               </View>
@@ -93,6 +96,13 @@ export function SignInScreen({ navigation }) {
                 </Pressable>
               </View>
             </View>
+
+            {/* Message */}
+            {info ? (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>{info}</Text>
+              </View>
+            ) : null}
 
             {/* Error */}
             {error ? (
@@ -191,6 +201,8 @@ const styles = StyleSheet.create({
   eyeText: { fontSize: 18, color: 'rgba(22,16,46,0.45)' },
   errorBox: { backgroundColor: 'rgba(255,126,107,0.12)', borderRadius: radii.sm, padding: 12 },
   errorText: { fontSize: 13, fontWeight: '700', color: '#C0392B' },
+  infoBox: { backgroundColor: 'rgba(212,255,61,0.24)', borderRadius: radii.sm, padding: 12 },
+  infoText: { fontSize: 13, fontWeight: '700', color: '#3F6E12' },
   submitBtn: {
     height: 56,
     borderRadius: radii.pill,
