@@ -22,8 +22,6 @@ const linking =
             [routes.OnbReveal]: 'onboarding/reveal',
             [routes.Home]: 'home',
             [routes.Book]: 'book',
-            [routes.Compatibility]: 'compatibility',
-            [routes.Vote]: 'vote',
             [routes.Explain]: 'explain',
             [routes.Notifications]: 'notifications',
             [routes.Personality]: 'personality',

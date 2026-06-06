@@ -32,6 +32,19 @@ export async function upsertUserPreferences(values) {
   if (error) throw error;
 }
 
+export async function upsertBooks(books) {
+  if (!books?.length) return;
+  const rows = books.map((b) => ({
+    ol_key: b.ol_key,
+    nombre_libro: b.title,
+    autor: b.author,
+    genero: b.genre ?? null,
+    descripcion: b.description ?? null,
+  }));
+  const { error } = await supabase.from('books').upsert(rows, { onConflict: 'ol_key' });
+  if (error) throw error;
+}
+
 export async function insertUserWeights(weights) {
   const userId = await getAuthedUserId();
   const rows = (weights ?? []).map((w) => ({ user_id: userId, ...w }));
