@@ -16,7 +16,6 @@ export function BookScreen({ navigation }) {
       backgroundColor={colors.cream}
       footer={
         <View style={{ gap: 10 }}>
-          <RMButton title="See compatibility →" onPress={() => navigation.navigate(routes.Compatibility)} />
           <RMButton title="Read AI reasoning" variant="dark" onPress={() => navigation.navigate(routes.Explain)} />
         </View>
       }

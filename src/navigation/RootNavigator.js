@@ -15,13 +15,11 @@ import { OnbRevealScreen } from '../screens/OnbRevealScreen';
 // App screens
 import { AllScreensScreen } from '../screens/AllScreensScreen';
 import { BookScreen } from '../screens/BookScreen';
-import { CompatibilityScreen } from '../screens/CompatibilityScreen';
 import { CreateGroupScreen } from '../screens/CreateGroupScreen';
 import { ExplainScreen } from '../screens/ExplainScreen';
 import { GroupSettingsScreen } from '../screens/GroupSettingsScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { InviteScreen } from '../screens/InviteScreen';
-import { VoteScreen } from '../screens/VoteScreen';
 import { GroupDetailScreen } from '../screens/GroupDetailScreen';
 import { GroupPreviewScreen } from '../screens/GroupPreviewScreen';
 import { JoinGroupScreen } from '../screens/JoinGroupScreen';
@@ -52,8 +50,6 @@ function AppStack() {
     <Stack.Navigator screenOptions={NO_HEADER} initialRouteName={routes.Home}>
       <Stack.Screen name={routes.Home}           component={HomeScreen} />
       <Stack.Screen name={routes.Book}           component={BookScreen} />
-      <Stack.Screen name={routes.Compatibility}  component={CompatibilityScreen} />
-      <Stack.Screen name={routes.Vote}           component={VoteScreen} />
       <Stack.Screen name={routes.Explain}        component={ExplainScreen} />
       <Stack.Screen name={routes.Personality}    component={PersonalityScreen} />
       <Stack.Screen name={routes.Telegram}       component={TelegramScreen} />

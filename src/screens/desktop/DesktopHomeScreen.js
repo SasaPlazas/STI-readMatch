@@ -20,9 +20,6 @@ export function DesktopHomeScreen({ navigation }) {
                 <Pill label="★ This week's match" tone="lime" />
                 <Pill label="UPDATED 2H AGO" tone="glass" />
               </View>
-              <Pressable onPress={() => navigation.navigate(routes.Compatibility)} style={styles.heroLink}>
-                <Text style={styles.heroLinkText}>Open workspace →</Text>
-              </Pressable>
             </View>
 
             <View style={styles.heroRow}>
@@ -51,11 +48,8 @@ export function DesktopHomeScreen({ navigation }) {
                   </Text>
                 </View>
                 <View style={styles.heroActions}>
-                  <Pressable onPress={() => navigation.navigate(routes.Vote)} style={styles.primary}>
-                    <Text style={styles.primaryText}>I'm in →</Text>
-                  </Pressable>
-                  <Pressable onPress={() => navigation.navigate(routes.Compatibility)} style={styles.ghost}>
-                    <Text style={styles.ghostText}>See alternates</Text>
+                  <Pressable onPress={() => navigation.navigate(routes.Book)} style={styles.primary}>
+                    <Text style={styles.primaryText}>See book →</Text>
                   </Pressable>
                 </View>
               </View>
@@ -154,29 +148,6 @@ export function DesktopHomeScreen({ navigation }) {
             </View>
           </View>
 
-          <View style={[styles.railCard, { backgroundColor: colors.ink }]}>
-            <View style={styles.railHead}>
-              <Text style={[styles.railTitle, { color: colors.cream }]}>Live vote</Text>
-              <Pill label="CLOSES THU 9PM" tone="glass" style={{ backgroundColor: 'rgba(255,255,255,0.10)' }} />
-            </View>
-            <View style={styles.voteRow}>
-              <BookCover book={BOOKS[2]} w={86} h={122} tilt={-3} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.voteTitle, { color: colors.cream }]} numberOfLines={2}>
-                  Lemon, Lemon
-                </Text>
-                <Text style={styles.voteMeta}>2 votes · 1 maybe</Text>
-              </View>
-            </View>
-            <View style={styles.voteBtns}>
-              <Pressable onPress={() => navigation.navigate(routes.Vote)} style={[styles.primary, { backgroundColor: colors.lime }]}>
-                <Text style={[styles.primaryText, { color: colors.ink }]}>Vote →</Text>
-              </Pressable>
-              <Pressable onPress={() => navigation.navigate(routes.Explain)} style={[styles.ghost, styles.ghostDark]}>
-                <Text style={[styles.ghostText, { color: colors.cream }]}>See why</Text>
-              </Pressable>
-            </View>
-          </View>
         </ScrollView>
       </View>
     </DesktopShell>
@@ -230,19 +201,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     alignItems: 'center',
-  },
-  heroLink: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  heroLinkText: {
-    color: colors.cream,
-    fontWeight: '900',
-    fontSize: 12,
   },
   heroRow: {
     marginTop: 16,
@@ -536,30 +494,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: 'rgba(22,16,46,0.7)',
     fontSize: 12,
-  },
-  voteRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'center',
-  },
-  voteTitle: {
-    fontWeight: '900',
-    letterSpacing: -0.2,
-    fontSize: 16,
-  },
-  voteMeta: {
-    marginTop: 6,
-    color: 'rgba(251,246,235,0.65)',
-    fontWeight: '700',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  voteBtns: {
-    marginTop: 12,
-    flexDirection: 'row',
-    gap: 10,
   },
 });
 

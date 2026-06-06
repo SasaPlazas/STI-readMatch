@@ -48,9 +48,6 @@ export function DesktopLandingScreen({ navigation }) {
                 <Text style={styles.ctaIconText}>→</Text>
               </View>
             </Pressable>
-            <Pressable onPress={() => navigation.navigate(routes.Compatibility)} style={styles.ctaGhost}>
-              <Text style={styles.ctaGhostText}>See compatibility workspace</Text>
-            </Pressable>
           </View>
 
           <View style={styles.metrics}>

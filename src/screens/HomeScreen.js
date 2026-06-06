@@ -89,9 +89,6 @@ export function HomeScreen({ navigation }) {
       {/* ── My circles ── */}
       <View style={styles.circlesHeader}>
         <Text style={styles.circlesTitle}>My circles</Text>
-        <Pressable onPress={() => navigation.navigate(routes.CreateGroup)}>
-          <Text style={styles.circlesAdd}>+ New</Text>
-        </Pressable>
       </View>
 
       <View style={styles.circlesList}>
@@ -141,6 +138,18 @@ export function HomeScreen({ navigation }) {
             </Pressable>
           );
         })}
+
+        {/* Create a new circle */}
+        <Pressable
+          onPress={() => navigation.navigate(routes.CreateGroup)}
+          style={styles.createCard}
+        >
+          <View style={styles.createIcon}>
+            <Text style={styles.createIconText}>✦</Text>
+          </View>
+          <Text style={styles.createText}>Create a circle</Text>
+          <Text style={styles.circleArrow}>›</Text>
+        </Pressable>
 
         {/* Join another circle */}
         <Pressable
@@ -218,6 +227,13 @@ const styles = StyleSheet.create({
   circleMeta: { fontSize: 12, fontWeight: '700', color: 'rgba(22,16,46,0.5)' },
   circleAvatars: { flexDirection: 'row', marginTop: 4 },
   circleArrow: { fontSize: 22, fontWeight: '900', color: 'rgba(22,16,46,0.3)', flexShrink: 0 },
+  createCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: colors.ink, borderRadius: radii.xl, padding: 14,
+  },
+  createIcon: { width: 48, height: 48, borderRadius: 15, backgroundColor: colors.lime, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  createIconText: { fontSize: 20, color: colors.ink, fontWeight: '900' },
+  createText: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.cream },
   joinCard: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     backgroundColor: colors.cream, borderRadius: radii.xl, padding: 14,

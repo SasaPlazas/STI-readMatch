@@ -6,7 +6,6 @@ import { routes } from '../../navigation/routes';
 
 const NAV = [
   { r: routes.Home, label: 'Home' },
-  { r: routes.Compatibility, label: 'Compatibility' },
   { r: routes.Notifications, label: 'Notifications' },
   { r: routes.GroupSettings, label: 'Group' },
   { r: routes.Personality, label: 'Personality' },

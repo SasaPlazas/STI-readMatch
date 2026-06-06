@@ -1,7 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { routes } from './routes';
-import { DesktopCompatibilityScreen } from '../screens/desktop/DesktopCompatibilityScreen';
 import { DesktopGroupScreen } from '../screens/desktop/DesktopGroupScreen';
 import { DesktopHomeScreen } from '../screens/desktop/DesktopHomeScreen';
 import { DesktopLandingScreen } from '../screens/desktop/DesktopLandingScreen';
@@ -21,7 +20,6 @@ import { OnbRevealScreen } from '../screens/OnbRevealScreen';
 import { SignInScreen } from '../screens/SignInScreen';
 import { SyncScreen } from '../screens/SyncScreen';
 import { TelegramScreen } from '../screens/TelegramScreen';
-import { VoteScreen } from '../screens/VoteScreen';
 
 const Stack = createNativeStackNavigator();
 const NO_HEADER = { headerShown: false };
@@ -45,11 +43,9 @@ function AppStack() {
   return (
     <Stack.Navigator screenOptions={NO_HEADER} initialRouteName={routes.Home}>
       <Stack.Screen name={routes.Home} component={DesktopHomeScreen} />
-      <Stack.Screen name={routes.Compatibility} component={DesktopCompatibilityScreen} />
       <Stack.Screen name={routes.Notifications} component={DesktopNotificationsScreen} />
       <Stack.Screen name={routes.GroupSettings} component={DesktopGroupScreen} />
       <Stack.Screen name={routes.Personality} component={DesktopPersonalityScreen} />
-      <Stack.Screen name={routes.Vote} component={VoteScreen} />
       <Stack.Screen name={routes.Book} component={BookScreen} />
       <Stack.Screen name={routes.Explain} component={ExplainScreen} />
       <Stack.Screen name={routes.Telegram} component={TelegramScreen} />
