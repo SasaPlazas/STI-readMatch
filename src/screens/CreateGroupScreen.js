@@ -10,15 +10,15 @@ import { routes } from '../navigation/routes';
 
 const VIBE_CATEGORIES = [
   {
-    label: 'Estilos',
+    label: 'Styles',
     options: ['Dark Academia','Cozy Fantasy','Psychological','Emotional','Philosophical','Fast Thrillers','Sci-Fi','Character-driven'],
   },
   {
-    label: 'Géneros',
+    label: 'Genres',
     options: ['Literary','Fantasy','Mystery','Romance','Memoir','History','Horror','Essays','Poetry','Climate','Politics'],
   },
   {
-    label: 'Ritmo',
+    label: 'Pace',
     options: ['Light & fast','Balanced & immersive','Deep & philosophical','Experimental'],
   },
 ];
@@ -60,7 +60,7 @@ export function CreateGroupScreen({ navigation }) {
     if (selectedVibes.includes(label)) {
       setSelectedVibes((v) => v.filter((x) => x !== label));
     } else {
-      if (selectedVibes.length >= MAX_VIBES) { setVibeError('Máximo 5 vibes por grupo'); return; }
+      if (selectedVibes.length >= MAX_VIBES) { setVibeError('Max 5 vibes per circle'); return; }
       setSelectedVibes((v) => [...v, label]);
     }
   };
@@ -87,7 +87,7 @@ export function CreateGroupScreen({ navigation }) {
       });
       setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
-      setError(e?.message || 'No se pudo crear el círculo');
+      setError(e?.message || 'Could not create the circle');
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -100,29 +100,29 @@ export function CreateGroupScreen({ navigation }) {
         backgroundColor={colors.ink}
         footer={
           <RMButton
-            title="Ir al dashboard →"
+            title="Go to dashboard →"
             variant="primary"
             onPress={() => navigation.navigate(routes.Home)}
           />
         }
       >
         <View style={styles.linkWrap}>
-          <Text style={styles.linkKicker}>✦ Círculo creado</Text>
+          <Text style={styles.linkKicker}>✦ Circle created</Text>
           <Text style={styles.linkTitle}>
-            Comparte este{'\n'}
+            Share this{'\n'}
             <Text style={styles.linkAccent}>link</Text>
           </Text>
-          <Text style={styles.linkSub}>con tus amigos para que se unan a tu círculo.</Text>
+          <Text style={styles.linkSub}>with your friends so they can join your circle.</Text>
           <TextInput
             value={groupLink}
             editable={false}
             selectTextOnFocus
             style={styles.linkInput}
           />
-          <Text style={styles.linkHint}>Selecciona el texto para copiarlo</Text>
+          <Text style={styles.linkHint}>Select the text to copy it</Text>
           {tgOn && (
             <Text style={styles.linkTgNote}>
-              El bot de Telegram se activará cuando conectes el bot — por ahora es un placeholder.
+              The Telegram bot will activate when you connect it — placeholder for now.
             </Text>
           )}
         </View>
@@ -135,14 +135,14 @@ export function CreateGroupScreen({ navigation }) {
       backgroundColor={colors.cream}
       footer={
         <RMButton
-          title={saving ? 'Creando…' : 'Create circle ✦'}
+          title={saving ? 'Creating…' : 'Create circle ✦'}
           variant={!saving ? 'dark' : 'ghost'}
           disabled={saving}
           onPress={onCreate}
         />
       }
     >
-      <TopBar title="Nuevo círculo" onBack={() => navigation.goBack()} />
+      <TopBar title="New circle" onBack={() => navigation.goBack()} />
 
       <View style={styles.header}>
         <Text style={styles.title}>
@@ -150,7 +150,7 @@ export function CreateGroupScreen({ navigation }) {
           <Text style={styles.titleItalic}>reading circle</Text>
         </Text>
         <Text style={styles.subtitle}>
-          Dale un nombre, define el vibe e invita a tus amigos.
+          Name it, set the vibe, and invite your friends.
         </Text>
       </View>
 
@@ -158,12 +158,12 @@ export function CreateGroupScreen({ navigation }) {
 
       {/* Name */}
       <View style={styles.card}>
-        <Text style={styles.cardQ}>01 · Nombre</Text>
+        <Text style={styles.cardQ}>01 · Name</Text>
         <TextInput
           value={name}
           onChangeText={setName}
           style={styles.nameInput}
-          placeholder="Nombre del círculo…"
+          placeholder="Circle name…"
           placeholderTextColor="rgba(22,16,46,0.35)"
         />
       </View>
@@ -171,7 +171,7 @@ export function CreateGroupScreen({ navigation }) {
       {/* Vibes */}
       <View style={styles.card}>
         <View style={styles.cardTitleRow}>
-          <Text style={styles.cardQ}>02 · ¿Qué leerán?</Text>
+          <Text style={styles.cardQ}>02 · What will you read?</Text>
           <Text style={[styles.vibeCount, selectedVibes.length > 0 && styles.vibeCountActive]}>
             {selectedVibes.length} / {MAX_VIBES}
           </Text>
@@ -193,19 +193,19 @@ export function CreateGroupScreen({ navigation }) {
           </View>
         ))}
         <Text style={styles.vibeHint}>
-          Esto nos da una idea del tipo de lecturas que busca tu grupo, pero las recomendaciones siempre se adaptan a los gustos reales de cada miembro.
+          This gives us an idea of your group's reading style — recommendations always adapt to each member's actual tastes.
         </Text>
       </View>
 
       {/* Friends */}
       <View style={styles.card}>
-        <Text style={styles.cardQ}>03 · Invitar amigos</Text>
+        <Text style={styles.cardQ}>03 · Invite friends</Text>
         <View style={styles.searchRow}>
           <TextInput
             value={friendQuery}
             onChangeText={setFriendQuery}
             style={styles.searchInput}
-            placeholder="Buscar por username…"
+            placeholder="Search by username…"
             placeholderTextColor="rgba(22,16,46,0.35)"
             autoCapitalize="none"
             autoCorrect={false}
@@ -223,7 +223,7 @@ export function CreateGroupScreen({ navigation }) {
                   <Text style={styles.resultName}>{friendLabel(r)}</Text>
                   {r.username && r.email ? <Text style={styles.resultEmail}>{r.email}</Text> : null}
                 </View>
-                <Text style={styles.resultAdd}>+ Invitar</Text>
+                <Text style={styles.resultAdd}>+ Invite</Text>
               </Pressable>
             ))}
           </View>
@@ -251,9 +251,9 @@ export function CreateGroupScreen({ navigation }) {
             <Text style={styles.tgIconText}>↗</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>Conectar Telegram</Text>
+            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>Connect Telegram</Text>
             <Text style={[styles.tgBody, tgOn && { color: 'rgba(251,246,235,0.75)' }]}>
-              Conecta tu grupo a Telegram para recibir las recomendaciones directamente ahí.
+              Connect your group to Telegram to receive recommendations directly there.
             </Text>
           </View>
           <Pressable onPress={() => setTgOn((v) => !v)} style={[styles.toggle, tgOn && styles.toggleOn]}>

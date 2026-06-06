@@ -81,7 +81,7 @@ export function AuthProvider({ children }) {
 
   async function completeOnboarding() {
     if (!session?.user?.id) {
-      throw new Error("No se encontró sesión activa. Inicia sesión de nuevo.");
+      throw new Error("No active session found. Please sign in again.");
     }
     const { error } = await supabase.auth.updateUser({
       data: { completedOnboarding: true },

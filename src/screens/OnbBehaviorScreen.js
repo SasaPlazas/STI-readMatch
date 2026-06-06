@@ -246,7 +246,7 @@ export function OnbBehaviorScreen({ navigation }) {
         if (!isContinueError) throw e;
       }
     } catch (e) {
-      setError(e?.message || "No se pudieron guardar tus preferencias");
+      setError(e?.message || "Could not save your preferences");
       shouldNavigate = false;
     } finally {
       savingRef.current = false;
@@ -262,11 +262,11 @@ export function OnbBehaviorScreen({ navigation }) {
         <View style={{ gap: 8 }}>
           {!canContinue && (
             <Text style={styles.validationHint}>
-              Agrega al menos 1 libro a tu top 5 para continuar
+              Add at least 1 book to your top 5 to continue
             </Text>
           )}
           <RMButton
-            title={saving ? "Guardando…" : "Continue · Personality"}
+            title={saving ? "Saving…" : "Continue · Personality"}
             variant={canContinue && !saving ? "dark" : "ghost"}
             disabled={!canContinue || saving}
             onPress={onPressContinue}
@@ -307,7 +307,7 @@ export function OnbBehaviorScreen({ navigation }) {
             </Text>
           </View>
         </View>
-        <Text style={styles.sectionHint}>BUSCA LIBROS REALES · REORDENA CON ⠿</Text>
+        <Text style={styles.sectionHint}>SEARCH REAL BOOKS · DRAG ⠿ TO REORDER</Text>
 
         {/* Book search */}
         {topBooks.length < 5 && (
@@ -372,7 +372,7 @@ export function OnbBehaviorScreen({ navigation }) {
         ) : (
           <View style={styles.emptyBooks}>
             <Text style={styles.emptyBooksText}>
-              Busca tus libros favoritos y arma tu top 5
+              Search your favorite books and build your top 5
             </Text>
           </View>
         )}
@@ -382,7 +382,7 @@ export function OnbBehaviorScreen({ navigation }) {
             <Text style={styles.hintIconText}>✦</Text>
           </View>
           <Text style={styles.hintBoxText}>
-            Toca ⠿ y arrastra para reordenar · Elige etiquetas para definir tu aura lectora
+            Tap ⠿ and drag to reorder · Choose tags to define your reading aura
           </Text>
         </View>
       </View>

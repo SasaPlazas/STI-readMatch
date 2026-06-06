@@ -4,7 +4,7 @@ export async function getAuthedUserId() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   const id = data?.session?.user?.id;
-  if (!id) throw new Error("No hay un usuario autenticado");
+  if (!id) throw new Error("No authenticated user found");
   return id;
 }
 

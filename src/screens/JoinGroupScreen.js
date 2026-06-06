@@ -38,14 +38,14 @@ export function JoinGroupScreen({ navigation }) {
 
   function handleSearch() {
     const trimmed = code.trim().toUpperCase();
-    if (trimmed.length < 4) { setCodeError('Ingresa al menos 4 caracteres'); return; }
+    if (trimmed.length < 4) { setCodeError('Enter at least 4 characters'); return; }
     setCodeError('');
     setSearching(true);
     setTimeout(() => {
       const match = DISCOVERABLE_GROUPS.find((g) => g.code === trimmed);
       setSearching(false);
       if (match) { setFound(match); }
-      else { setCodeError('Ningún grupo con ese código. Verifica e intenta de nuevo.'); setFound(null); }
+      else { setCodeError('No group found with that code. Check and try again.'); setFound(null); }
     }, 900);
   }
 
@@ -74,8 +74,8 @@ export function JoinGroupScreen({ navigation }) {
 
       {/* Deep link join */}
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>TIENES UN LINK</Text>
-        <Text style={styles.cardTitle}>Pega el link de invitación</Text>
+        <Text style={styles.cardLabel}>GOT A LINK</Text>
+        <Text style={styles.cardTitle}>Paste your invite link</Text>
         <View style={styles.linkRow}>
           <TextInput
             value={deepLink}
@@ -96,9 +96,9 @@ export function JoinGroupScreen({ navigation }) {
         {joinError ? <Text style={styles.errText}>{joinError}</Text> : null}
         {joinSuccess ? (
           <View style={styles.successBox}>
-            <Text style={styles.successText}>¡Te uniste a {joinSuccess}! 🎉</Text>
+            <Text style={styles.successText}>You joined {joinSuccess}! 🎉</Text>
             <Pressable onPress={() => navigation.navigate(routes.Home)} style={styles.goHome}>
-              <Text style={styles.goHomeText}>Ir al dashboard →</Text>
+              <Text style={styles.goHomeText}>Go to dashboard →</Text>
             </Pressable>
           </View>
         ) : (
@@ -107,7 +107,7 @@ export function JoinGroupScreen({ navigation }) {
             disabled={!deepLink.trim() || joining}
             style={[styles.joinBtn, (!deepLink.trim() || joining) && styles.joinBtnDisabled]}
           >
-            <Text style={styles.joinBtnText}>{joining ? 'Uniéndome…' : 'Unirme al círculo'}</Text>
+            <Text style={styles.joinBtnText}>{joining ? 'Joining…' : 'Join circle'}</Text>
           </Pressable>
         )}
       </View>
@@ -115,18 +115,18 @@ export function JoinGroupScreen({ navigation }) {
       {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>o busca por código</Text>
+        <Text style={styles.dividerText}>or search by code</Text>
         <View style={styles.dividerLine} />
       </View>
 
       {/* Code input */}
       <View style={styles.inputCard}>
-        <Text style={styles.inputLabel}>CÓDIGO DE INVITACIÓN</Text>
+        <Text style={styles.inputLabel}>INVITE CODE</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={code}
             onChangeText={(v) => { setCode(v.toUpperCase()); setFound(null); setCodeError(''); }}
-            placeholder="ej. DR9981"
+            placeholder="e.g. DR9981"
             placeholderTextColor="rgba(22,16,46,0.3)"
             autoCapitalize="characters"
             autoCorrect={false}
@@ -147,7 +147,7 @@ export function JoinGroupScreen({ navigation }) {
           disabled={code.length < 4 || searching}
           style={[styles.joinBtn, (code.length < 4 || searching) && styles.joinBtnDisabled, { marginTop: 12 }]}
         >
-          <Text style={styles.joinBtnText}>{searching ? 'Buscando…' : 'Buscar grupo'}</Text>
+          <Text style={styles.joinBtnText}>{searching ? 'Searching…' : 'Find group'}</Text>
         </Pressable>
       </View>
 
@@ -169,7 +169,7 @@ export function JoinGroupScreen({ navigation }) {
                   return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -8 }}><Avatar m={m} size={22} /></View> : null;
                 })}
               </View>
-              <Text style={styles.foundMembers}>{found.memberIds.length} miembros · {found.pace}</Text>
+              <Text style={styles.foundMembers}>{found.memberIds.length} members · {found.pace}</Text>
             </View>
           </View>
           <View style={styles.previewBtn}>
@@ -181,7 +181,7 @@ export function JoinGroupScreen({ navigation }) {
       {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>o explora círculos populares</Text>
+        <Text style={styles.dividerText}>or explore popular circles</Text>
         <View style={styles.dividerLine} />
       </View>
 
@@ -205,7 +205,7 @@ export function JoinGroupScreen({ navigation }) {
                   return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -6 }}><Avatar m={m} size={20} /></View> : null;
                 })}
               </View>
-              <Text style={styles.browseCount}>{g.memberIds.length} miembros</Text>
+              <Text style={styles.browseCount}>{g.memberIds.length} members</Text>
               <View style={styles.browseArrow}>
                 <Text style={styles.browseArrowText}>›</Text>
               </View>

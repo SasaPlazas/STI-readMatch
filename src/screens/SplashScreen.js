@@ -37,7 +37,7 @@ export function SplashScreen({ navigation }) {
           </Text>
         </Pressable>
         <Text style={styles.allScreens} onPress={() => navigation.navigate(routes.AllScreens)}>
-          Ver todas las pantallas
+          All screens
         </Text>
       </View>
     </LinearGradient>

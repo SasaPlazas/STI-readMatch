@@ -55,12 +55,12 @@ export function CreateAccountScreen({ navigation }) {
     try {
       const result = await signUp({ email, password, name });
       if (result?.needsEmailConfirmation) {
-        setInfo('Revisa tu correo y confirma tu cuenta antes de continuar con el onboarding.');
+        setInfo('Check your email and confirm your account before continuing.');
         return;
       }
       navigation.reset({ index: 0, routes: [{ name: routes.OnbIdentity }] });
     } catch (e) {
-      setError(e?.message || 'No se pudo crear la cuenta');
+      setError(e?.message || 'Could not create account');
     } finally {
       setLoading(false);
     }

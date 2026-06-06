@@ -24,7 +24,7 @@ export function SignInScreen({ navigation, route }) {
       const { completedOnboarding } = await signIn({ email, password });
       navigation.reset({ index: 0, routes: [{ name: completedOnboarding ? routes.Home : routes.OnbIdentity }] });
     } catch (e) {
-      setError(e?.message || 'No se pudo iniciar sesión');
+      setError(e?.message || 'Could not sign in');
     } finally {
       setLoading(false);
     }

@@ -135,7 +135,7 @@ export function OnbPersonalityScreen({ navigation }) {
                 console.warn("user_weights (non-critical):", e?.message);
               }
             } catch (e) {
-              setError(e?.message || "No se pudieron guardar tus preferencias");
+              setError(e?.message || "Could not save your preferences");
               shouldNavigate = false;
             } finally {
               savingRef.current = false;

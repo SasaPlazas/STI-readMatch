@@ -9,15 +9,15 @@ import { colors, radii } from "../theme/tokens";
 
 const VIBE_CATEGORIES = [
   {
-    label: "Estilos",
+    label: "Styles",
     options: ["Dark Academia","Cozy Fantasy","Psychological","Emotional","Philosophical","Fast Thrillers","Sci-Fi","Character-driven"],
   },
   {
-    label: "Géneros",
+    label: "Genres",
     options: ["Literary","Fantasy","Mystery","Romance","Memoir","History","Horror","Essays","Poetry","Climate","Politics"],
   },
   {
-    label: "Ritmo",
+    label: "Pace",
     options: ["Light & fast","Balanced & immersive","Deep & philosophical","Experimental"],
   },
 ];
@@ -61,7 +61,7 @@ export function OnbCollabScreen() {
     if (selectedVibes.includes(label)) {
       setSelectedVibes((v) => v.filter((x) => x !== label));
     } else {
-      if (selectedVibes.length >= MAX_VIBES) { setVibeError("Máximo 5 vibes por grupo"); return; }
+      if (selectedVibes.length >= MAX_VIBES) { setVibeError("Max 5 vibes per circle"); return; }
       setSelectedVibes((v) => [...v, label]);
     }
   };
@@ -78,7 +78,7 @@ export function OnbCollabScreen() {
     if (savingRef.current || skipLoading) return;
     setSkipLoading(true);
     try { await completeOnboarding(); }
-    catch (e) { setError(e?.message || "No se pudo continuar"); setSkipLoading(false); }
+    catch (e) { setError(e?.message || "Could not continue"); setSkipLoading(false); }
   };
 
   const onCreate = async () => {
@@ -101,7 +101,7 @@ export function OnbCollabScreen() {
       } catch (e) { console.warn("weights:", e?.message); }
       setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
-      setError(e?.message || "No se pudo crear tu círculo");
+      setError(e?.message || "Could not create your circle");
     } finally {
       savingRef.current = false;
       setSaving(false);
@@ -126,22 +126,22 @@ export function OnbCollabScreen() {
         }
       >
         <View style={styles.linkWrap}>
-          <Text style={styles.linkKicker}>✦ Tu círculo está listo</Text>
+          <Text style={styles.linkKicker}>✦ Your circle is ready</Text>
           <Text style={styles.linkTitle}>
-            Comparte este{"\n"}
+            Share this{"\n"}
             <Text style={styles.linkAccent}>link</Text>
           </Text>
-          <Text style={styles.linkSub}>con tus amigos para que se unan a tu círculo.</Text>
+          <Text style={styles.linkSub}>with your friends so they can join your circle.</Text>
           <TextInput
             value={groupLink}
             editable={false}
             selectTextOnFocus
             style={styles.linkInput}
           />
-          <Text style={styles.linkHint}>Selecciona el texto para copiarlo</Text>
+          <Text style={styles.linkHint}>Select the text to copy it</Text>
           {tgOn && (
             <Text style={styles.linkTgNote}>
-              El bot de Telegram se activará cuando conectes el bot — por ahora es un placeholder.
+              The Telegram bot will activate when you connect it — placeholder for now.
             </Text>
           )}
           {error ? <Text style={styles.linkError}>{error}</Text> : null}
@@ -156,7 +156,7 @@ export function OnbCollabScreen() {
       footer={
         <View style={{ gap: 10 }}>
           <RMButton
-            title={saving ? "Guardando…" : "Create my circle ✦"}
+            title={saving ? "Saving…" : "Create my circle ✦"}
             variant={!saving ? "dark" : "ghost"}
             disabled={saving || skipLoading}
             onPress={onCreate}
@@ -208,7 +208,7 @@ export function OnbCollabScreen() {
             {selectedVibes.length} / {MAX_VIBES}
           </Text>
         </View>
-        <Text style={styles.cardTitle}>¿Qué leerá tu círculo?</Text>
+        <Text style={styles.cardTitle}>What will your circle read?</Text>
         {vibeError ? <Text style={styles.vibeError}>{vibeError}</Text> : null}
         {VIBE_CATEGORIES.map((cat) => (
           <View key={cat.label} style={styles.vibeGroup}>
@@ -226,20 +226,20 @@ export function OnbCollabScreen() {
           </View>
         ))}
         <Text style={styles.vibeHint}>
-          Esto nos da una idea del tipo de lecturas que busca tu grupo, pero las recomendaciones siempre se adaptan a los gustos reales de cada miembro.
+          This gives us an idea of your group's reading style — recommendations always adapt to each member's actual tastes.
         </Text>
       </View>
 
       {/* Q03 — Friends */}
       <View style={styles.card}>
         <Text style={styles.cardQ}>Q · 03</Text>
-        <Text style={styles.cardTitle}>Invita amigos</Text>
+        <Text style={styles.cardTitle}>Invite friends</Text>
         <View style={styles.searchRow}>
           <TextInput
             value={friendQuery}
             onChangeText={setFriendQuery}
             style={styles.searchInput}
-            placeholder="Buscar por username…"
+            placeholder="Search by username…"
             placeholderTextColor="rgba(22,16,46,0.35)"
             autoCapitalize="none"
             autoCorrect={false}
@@ -257,7 +257,7 @@ export function OnbCollabScreen() {
                   <Text style={styles.resultName}>{friendLabel(r)}</Text>
                   {r.username && r.email ? <Text style={styles.resultEmail}>{r.email}</Text> : null}
                 </View>
-                <Text style={styles.resultAdd}>+ Invitar</Text>
+                <Text style={styles.resultAdd}>+ Invite</Text>
               </Pressable>
             ))}
           </View>
@@ -286,9 +286,9 @@ export function OnbCollabScreen() {
             <Text style={styles.tgIconText}>↗</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>Conectar Telegram</Text>
+            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>Connect Telegram</Text>
             <Text style={[styles.tgBody, tgOn && { color: "rgba(251,246,235,0.75)" }]}>
-              Conecta tu grupo a Telegram para recibir las recomendaciones directamente ahí.
+              Connect your group to Telegram to receive recommendations directly there.
             </Text>
           </View>
           <Pressable onPress={() => setTgOn((v) => !v)} style={[styles.toggle, tgOn && styles.toggleOn]}>

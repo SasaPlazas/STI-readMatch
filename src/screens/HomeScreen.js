@@ -54,7 +54,7 @@ function GroupCard({ group, onPress }) {
 
         <View style={styles.metaRow}>
           <Text style={styles.circleMeta}>
-            {group.memberCount ?? 1} miembro{(group.memberCount ?? 1) !== 1 ? 's' : ''}
+            {group.memberCount ?? 1} member{(group.memberCount ?? 1) !== 1 ? 's' : ''}
           </Text>
           {group.telegram_chat_id ? (
             <View style={styles.tgBadge}>
@@ -74,12 +74,12 @@ function EmptyState({ tab, navigation }) {
     return (
       <View style={styles.emptyBox}>
         <Text style={styles.emptyIcon}>✦</Text>
-        <Text style={styles.emptyText}>Aún no has creado ningún grupo</Text>
+        <Text style={styles.emptyText}>You haven't created any circles yet</Text>
         <Pressable
           onPress={() => navigation.navigate(routes.CreateGroup)}
           style={styles.emptyBtn}
         >
-          <Text style={styles.emptyBtnText}>Crear grupo</Text>
+          <Text style={styles.emptyBtnText}>Create a circle</Text>
         </Pressable>
       </View>
     );
@@ -87,18 +87,18 @@ function EmptyState({ tab, navigation }) {
   return (
     <View style={styles.emptyBox}>
       <Text style={styles.emptyIcon}>◎</Text>
-      <Text style={styles.emptyText}>Aún no te has unido a ningún grupo</Text>
+      <Text style={styles.emptyText}>You haven't joined any circles yet</Text>
       <Pressable
         onPress={() => navigation.navigate(routes.JoinGroup)}
         style={styles.emptyBtn}
       >
-        <Text style={styles.emptyBtnText}>Unirme con link</Text>
+        <Text style={styles.emptyBtnText}>Join with a link</Text>
       </Pressable>
     </View>
   );
 }
 
-const TABS = ['Mis grupos', 'Unidos'];
+const TABS = ['My circles', 'Joined'];
 
 export function HomeScreen({ navigation }) {
   const { user } = useAuth();
@@ -184,7 +184,7 @@ export function HomeScreen({ navigation }) {
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar grupos..."
+          placeholder="Search circles..."
           placeholderTextColor="rgba(22,16,46,0.35)"
           style={styles.searchInput}
           autoCapitalize="none"
@@ -237,7 +237,7 @@ export function HomeScreen({ navigation }) {
               <View style={styles.createIcon}>
                 <Text style={styles.createIconText}>✦</Text>
               </View>
-              <Text style={styles.createText}>Crear un círculo</Text>
+              <Text style={styles.createText}>Create a circle</Text>
               <Text style={styles.circleArrow}>›</Text>
             </Pressable>
 
@@ -248,7 +248,7 @@ export function HomeScreen({ navigation }) {
               <View style={styles.joinIcon}>
                 <Text style={styles.joinIconText}>◎</Text>
               </View>
-              <Text style={styles.joinText}>Unirme a un círculo</Text>
+              <Text style={styles.joinText}>Join a circle</Text>
               <Text style={styles.circleArrow}>›</Text>
             </Pressable>
           </View>

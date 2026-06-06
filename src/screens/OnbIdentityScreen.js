@@ -186,7 +186,7 @@ export function OnbIdentityScreen({ navigation }) {
         if (!isContinueError) throw e;
       }
     } catch (e) {
-      setError(e?.message || "No se pudieron guardar tus preferencias");
+      setError(e?.message || "Could not save your preferences");
       shouldNavigate = false;
     } finally {
       savingRef.current = false;
@@ -197,10 +197,10 @@ export function OnbIdentityScreen({ navigation }) {
 
   const validationMsg = !canContinue
     ? selectedAuthors.length === 0 && pickedGenres.size < 2
-      ? "Selecciona al menos 1 autor y 2 géneros para continuar"
+      ? "Select at least 1 author and 2 genres to continue"
       : selectedAuthors.length === 0
-      ? "Busca y selecciona al menos 1 autor para continuar"
-      : "Selecciona al menos 2 géneros para continuar"
+      ? "Search and select at least 1 author to continue"
+      : "Select at least 2 genres to continue"
     : "";
 
   return (
@@ -212,7 +212,7 @@ export function OnbIdentityScreen({ navigation }) {
             <Text style={styles.validationHint}>{validationMsg}</Text>
           ) : null}
           <RMButton
-            title={saving ? "Guardando…" : "Continue · Behavior"}
+            title={saving ? "Saving…" : "Continue · Behavior"}
             variant={canContinue && !saving ? "dark" : "ghost"}
             disabled={!canContinue || saving}
             onPress={onPressContinue}
@@ -296,7 +296,7 @@ export function OnbIdentityScreen({ navigation }) {
             </View>
           )}
         </View>
-        <Text style={styles.sectionHint}>2+ REQUERIDOS · MULTI-SELECT</Text>
+        <Text style={styles.sectionHint}>2+ REQUIRED · MULTI-SELECT</Text>
         <View style={styles.genreChips}>
           {GENRES.map((g) => {
             const on = pickedGenres.has(g.id);
@@ -323,7 +323,7 @@ export function OnbIdentityScreen({ navigation }) {
             </View>
           )}
         </View>
-        <Text style={styles.sectionHint}>BÚSQUEDA REAL · 3+ CARACTERES</Text>
+        <Text style={styles.sectionHint}>LIVE SEARCH · 3+ CHARS</Text>
 
         {/* Search box */}
         <View style={styles.authorSearch}>
@@ -366,7 +366,7 @@ export function OnbIdentityScreen({ navigation }) {
         {selectedAuthors.length === 0 && authorResults.length === 0 && !authorSearching && (
           <View style={styles.emptyAuthors}>
             <Text style={styles.emptyAuthorsText}>
-              Escribe el nombre de un autor para buscarlo en Open Library
+              Type an author's name to search Open Library
             </Text>
           </View>
         )}
