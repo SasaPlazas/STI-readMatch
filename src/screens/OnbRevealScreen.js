@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Animated, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuth } from '../context/AuthContext';
 import { Avatar } from '../components/Avatar';
 import { RMButton } from '../components/RMButton';
 import { MEMBERS } from '../data/sample';
@@ -24,9 +23,6 @@ const PAIRS = [
 ];
 
 export function OnbRevealScreen({ navigation }) {
-  const { completeOnboarding } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const anim1 = useRef(new Animated.Value(0)).current;
   const anim2 = useRef(new Animated.Value(0)).current;
   const anim3 = useRef(new Animated.Value(0)).current;
@@ -134,28 +130,10 @@ export function OnbRevealScreen({ navigation }) {
 
         <Animated.View style={[styles.cta, { opacity: anim3 }]}>
           <LinearGradient colors={['rgba(22,16,46,0)', 'rgba(22,16,46,0.92)']} style={styles.ctaGrad}>
-            {error ? (
-              <View style={styles.errorBox}>
-                <Text style={styles.errorText}>{error}</Text>
-              </View>
-            ) : null}
             <RMButton
-              title={loading ? 'Entering…' : 'Enter ReadMatch →'}
+              title="Create my circle →"
               variant="primary"
-              onPress={async () => {
-                if (loading) return;
-                setError('');
-                setLoading(true);
-                try {
-                  await completeOnboarding();
-                  // RootNavigator cambiará automáticamente a AppStack
-                  // cuando el usuario tenga completedOnboarding = true.
-                } catch (err) {
-                  setError(err?.message || 'No se pudo entrar a ReadMatch');
-                } finally {
-                  setLoading(false);
-                }
-              }}
+              onPress={() => navigation.navigate(routes.OnbCollab)}
               style={styles.ctaBtn}
             />
           </LinearGradient>

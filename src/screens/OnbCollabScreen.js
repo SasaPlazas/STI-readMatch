@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { Avatar } from "../components/Avatar";
 import { RMButton } from "../components/RMButton";
-import { insertUserWeights } from "../utils/userStorage";
+import { supabase } from "../lib/supabase";
+import { insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
+import { useAuth } from "../context/AuthContext";
 import { MEMBERS } from "../data/sample";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
@@ -18,87 +20,112 @@ const VIBES = [
 const SYNC_TAGS = ["Members ↔", "Votes ↔", "Recs →", "Highlights ←"];
 
 export function OnbCollabScreen({ navigation }) {
+  const { completeOnboarding } = useAuth();
   const [name, setName] = useState("Slow Burners");
   const [vibe, setVibe] = useState("curious");
   const [tgOn, setTgOn] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [skipLoading, setSkipLoading] = useState(false);
   const [error, setError] = useState("");
   const savingRef = useRef(false);
 
   const selectedVibe = VIBES.find((v) => v.id === vibe);
 
+  const onSkip = async () => {
+    if (savingRef.current || skipLoading) return;
+    setSkipLoading(true);
+    setError("");
+    try {
+      await completeOnboarding();
+    } catch (e) {
+      setError(e?.message || "No se pudo continuar");
+      setSkipLoading(false);
+    }
+  };
+
   return (
     <Screen
       backgroundColor={colors.cream}
       footer={
-        <RMButton
-          title={saving ? "Saving…" : "Reveal my reader aura ✦"}
-          variant={!saving ? "dark" : "ghost"}
-          disabled={saving}
-          onPress={async () => {
+        <View style={{ gap: 10 }}>
+          <RMButton
+            title={saving ? "Saving…" : "Create my circle ✦"}
+            variant={!saving ? "dark" : "ghost"}
+            disabled={saving || skipLoading}
+            onPress={async () => {
             if (savingRef.current) return;
             savingRef.current = true;
             setSaving(true);
             setError("");
             let shouldNavigate = true;
             try {
-              const weights = [
-                { category: "circle_vibe", item: vibe, score: 1 },
-                { category: "telegram", item: "enabled", score: tgOn ? 1 : 0 },
+              // 1. Create group + add user as admin via SECURITY DEFINER function
+              //    (avoids RLS infinite recursion on group_members)
+              const { error: rpcError } = await supabase.rpc(
+                "create_group_with_admin",
                 {
-                  category: "circle_name",
-                  item: name.trim() || "Circle",
-                  score: 1,
-                },
-              ];
-              try {
-                await insertUserWeights(weights);
-              } catch (weightsError) {
-                const message = weightsError?.message ?? "";
-                const isContinueError =
-                  weightsError?.status === 403 ||
-                  weightsError?.status === 400 ||
-                  message.includes("Bad Request") ||
-                  message.includes("RLS") ||
-                  message.includes("row-level security") ||
-                  message.includes("new row violates") ||
-                  message.includes("policy");
-                if (!isContinueError) {
-                  throw weightsError;
+                  p_group_name: name.trim() || "My Circle",
+                  p_vibe: vibe,
+                  p_telegram_chat_id: tgOn ? "pending" : null,
                 }
+              );
+              if (rpcError) throw rpcError;
+
+              // 2. Mark onboarding complete in user_preferences
+              await upsertUserPreferences({ onboarding_completed: true });
+
+              // 5. Non-critical: save weights for recommendation engine
+              try {
+                await insertUserWeights([
+                  { category: "circle_vibe", item: vibe, score: 1 },
+                  { category: "telegram", item: "enabled", score: tgOn ? 1 : 0 },
+                  { category: "circle_name", item: name.trim() || "Circle", score: 1 },
+                ]);
+              } catch (e) {
+                console.warn("user_weights (non-critical):", e?.message);
               }
             } catch (e) {
-              setError(e?.message || "No se pudieron guardar tus preferencias");
+              setError(e?.message || "No se pudo crear tu círculo");
               shouldNavigate = false;
             } finally {
               savingRef.current = false;
               setSaving(false);
             }
             if (shouldNavigate) {
-              navigation.navigate(routes.OnbReveal);
+              await completeOnboarding();
             }
           }}
-        />
+          />
+          <Pressable
+            onPress={onSkip}
+            disabled={saving || skipLoading}
+            style={styles.skipBtn}
+          >
+            <Text style={styles.skipBtnText}>
+              {skipLoading ? "Entering ReadMatch…" : "Later →"}
+            </Text>
+          </Pressable>
+        </View>
       }
     >
       <View style={styles.progress}>
         <View style={styles.dots}>
-          {[1, 2, 3, 4].map((i) => (
+          {[1, 2, 3, 4, 5].map((i) => (
             <View key={i} style={[styles.dot, styles.dotOn]} />
           ))}
         </View>
-        <Text style={styles.stepLabel}>04 / 04</Text>
+        <Text style={styles.stepLabel}>05 / 05</Text>
       </View>
 
       <View style={styles.header}>
         <Text style={styles.kicker}>★ Chapter four</Text>
         <Text style={styles.title}>
-          Find your{"\n"}
+          Create your{"\n"}
           <Text style={styles.titleItalic}>circle</Text>
         </Text>
         <Text style={styles.subtitle}>
-          ReadMatch works better with people. Start a tiny circle — we'll handle
-          the Telegram side.
+          Start your own reading circle — or skip this step and jump straight to
+          the dashboard.
         </Text>
       </View>
       {error ? (
@@ -514,4 +541,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   footer: { position: "absolute", left: 22, right: 22, bottom: 26 },
+  skipBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+    opacity: 1,
+  },
+  skipBtnText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "rgba(22,16,46,0.5)",
+    letterSpacing: 0.2,
+  },
 });

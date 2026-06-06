@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { PanResponder, Pressable, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { RMButton } from "../components/RMButton";
-import { insertUserWeights } from "../utils/userStorage";
+import { insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
 
@@ -112,13 +112,17 @@ export function OnbPersonalityScreen({ navigation }) {
             setError("");
             let shouldNavigate = true;
             try {
+              // Critical: save personality to user_preferences
+              await upsertUserPreferences({
+                depth_preference: depth,
+                openness_score: openness,
+                group_values: Array.from(values),
+              });
+
+              // Non-critical: insert weights for recommendation engine
               const weights = [
                 { category: "depth", item: depth, score: 1 },
-                {
-                  category: "openness",
-                  item: "discovery",
-                  score: openness / 100,
-                },
+                { category: "openness", item: "discovery", score: openness / 100 },
                 ...Array.from(values).map((id) => ({
                   category: "collab_value",
                   item: id,
@@ -127,19 +131,8 @@ export function OnbPersonalityScreen({ navigation }) {
               ];
               try {
                 await insertUserWeights(weights);
-              } catch (weightsError) {
-                const message = weightsError?.message ?? "";
-                const isContinueError =
-                  weightsError?.status === 403 ||
-                  weightsError?.status === 400 ||
-                  message.includes("Bad Request") ||
-                  message.includes("RLS") ||
-                  message.includes("row-level security") ||
-                  message.includes("new row violates") ||
-                  message.includes("policy");
-                if (!isContinueError) {
-                  throw weightsError;
-                }
+              } catch (e) {
+                console.warn("user_weights (non-critical):", e?.message);
               }
             } catch (e) {
               setError(e?.message || "No se pudieron guardar tus preferencias");
@@ -149,7 +142,7 @@ export function OnbPersonalityScreen({ navigation }) {
               setSaving(false);
             }
             if (shouldNavigate) {
-              navigation.navigate(routes.OnbCollab);
+              navigation.navigate(routes.OnbReveal);
             }
           }}
         />
