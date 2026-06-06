@@ -1,49 +1,126 @@
+import { useCallback, useEffect, useState } from 'react';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Avatar } from '../components/Avatar';
-import { BookCover } from '../components/BookCover';
+import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
 import { useAuth } from '../context/AuthContext';
-import { BOOKS, MEMBERS } from '../data/sample';
+import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
+import { routes } from '../navigation/routes';
+
+const DEPTH_NUM = { light: 25, balanced: 55, deep: 82, experimental: 96 };
+const GENRE_COLORS = [
+  { c: colors.purple, dark: true },
+  { c: colors.coral, dark: false },
+  { c: colors.lime, dark: false },
+  { c: colors.lavender, dark: false },
+  { c: colors.ink, dark: true },
+  { c: colors.cream, outline: true },
+];
 
 export function PersonalityScreen({ navigation }) {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
+  const [prefs, setPrefs] = useState(null);
+  const [createdCount, setCreatedCount] = useState(0);
+  const [joinedCount, setJoinedCount] = useState(0);
+
+  const loadData = useCallback(async () => {
+    if (!user?.id) return;
+    const [{ data: p }, { count: total }, { count: admin }] = await Promise.all([
+      supabase
+        .from('user_preferences')
+        .select('archetype, reveal_text, favorite_genres, narrative_styles, depth_preference, openness_score')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('group_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id),
+      supabase
+        .from('group_members')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('role', 'admin'),
+    ]);
+    setPrefs(p ?? {});
+    setCreatedCount(admin ?? 0);
+    setJoinedCount((total ?? 0) - (admin ?? 0));
+  }, [user?.id]);
+
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
+
+  const archParts = (prefs?.archetype ?? '').split(' ');
+  const archFirst = archParts[0] ?? '—';
+  const archRest = archParts.slice(1).join(' ') || '—';
+
+  const genres = prefs?.favorite_genres ?? [];
+  const styles_list = prefs?.narrative_styles ?? [];
+  const openness = prefs?.openness_score ?? 0;
+  const depthLabel = prefs?.depth_preference ?? '—';
+  const depthNum = DEPTH_NUM[depthLabel] ?? 55;
+  const genresNum = Math.min(Math.round(genres.length / 8 * 100), 100);
+  const stylesNum = Math.min(Math.round(styles_list.length / 7 * 100), 100);
+
+  const nameInitial = user?.name?.[0]?.toUpperCase() ?? '?';
+  const hasReveal = Boolean(prefs?.reveal_text);
+
   return (
     <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
       <LinearGradient colors={[colors.lavender, colors.cream]} start={{ x: 0.3, y: 0 }} end={{ x: 0.7, y: 1 }} style={styles.hero}>
         <TopBar
-          subtitle="Reading identity · Iris"
+          subtitle={`Reading identity · ${user?.name ?? ''}`}
           title={null}
           onBack={() => navigation.goBack()}
           right={
             <Pressable accessibilityRole="button" onPress={signOut} style={styles.logoutBtn}>
-              <Text style={styles.logoutText}>Salir</Text>
+              <Text style={styles.logoutText}>Sign out</Text>
             </Pressable>
           }
         />
 
         <View style={styles.profileCard}>
           <View style={styles.profileTop}>
-            <Avatar m={MEMBERS[2]} size={48} />
+            <View style={styles.userAvatar}>
+              <Text style={styles.userAvatarLetter}>{nameInitial}</Text>
+            </View>
             <View>
-              <Text style={styles.name}>Iris Calderón</Text>
-              <Text style={styles.meta}>READER · 2.4yrs</Text>
+              <Text style={styles.name}>{user?.name ?? '—'}</Text>
+              <Text style={styles.meta}>READER</Text>
             </View>
           </View>
 
-          <Text style={styles.type}>
-            The{'\n'}
-            <Text style={styles.typeAccent}>Dark Academic</Text>
-          </Text>
-          <Text style={styles.blurb}>You read like there's a thesis to defend. Long sentences, longer silences.</Text>
+          {prefs?.archetype ? (
+            <>
+              <Text style={styles.type}>
+                {archFirst}{'\n'}
+                <Text style={styles.typeAccent}>{archRest}</Text>
+              </Text>
+              {hasReveal ? (
+                <Text style={styles.blurb}>{prefs.reveal_text}</Text>
+              ) : (
+                <Pressable
+                  style={styles.discoverBtn}
+                  onPress={() => navigation.navigate(routes.OnbReveal)}
+                >
+                  <Text style={styles.discoverBtnText}>Discover my profile →</Text>
+                </Pressable>
+              )}
+            </>
+          ) : (
+            <Pressable
+              style={[styles.discoverBtn, { marginTop: 18 }]}
+              onPress={() => navigation.navigate(routes.OnbReveal)}
+            >
+              <Text style={styles.discoverBtnText}>Discover my reading identity →</Text>
+            </Pressable>
+          )}
 
           <View style={styles.miniStats}>
             {[
-              { l: 'books / yr', v: '32' },
-              { l: 'avg pages', v: '286' },
-              { l: 'depth idx', v: '0.81' },
+              { l: 'depth', v: depthLabel },
+              { l: 'openness', v: `${openness}%` },
+              { l: 'circles', v: `${createdCount + joinedCount}` },
             ].map((s) => (
               <View key={s.l}>
                 <Text style={styles.miniKicker}>{s.l}</Text>
@@ -57,10 +134,10 @@ export function PersonalityScreen({ navigation }) {
       <Text style={styles.section}>Compatibility aura</Text>
       <View style={styles.auraGrid}>
         {[
-          { l: 'Slow prose', v: 92, c: colors.purple },
-          { l: 'Atmosphere', v: 88, c: colors.coral },
-          { l: 'Plot velocity', v: 28, c: colors.white, invert: true },
-          { l: 'Translation', v: 76, c: colors.lime },
+          { l: 'Openness', v: openness, c: colors.coral },
+          { l: 'Depth', v: depthNum, c: colors.purple },
+          { l: 'Genres', v: genresNum, c: colors.lime },
+          { l: 'Styles', v: stylesNum, c: colors.white, invert: true },
         ].map((t) => (
           <View key={t.l} style={[styles.auraCard, t.invert ? styles.auraInvert : { backgroundColor: t.c }]}>
             <Text style={styles.auraKicker}>{t.l}</Text>
@@ -77,32 +154,53 @@ export function PersonalityScreen({ navigation }) {
 
       <View style={styles.sectionRow}>
         <Text style={styles.section}>Signature genres</Text>
-        <Text style={styles.small}>TOP 6</Text>
+        <Text style={styles.small}>TOP {genres.length}</Text>
       </View>
-      <View style={styles.tags}>
-        {[
-          { l: 'Literary Fiction', c: colors.purple, dark: true },
-          { l: 'Translation', c: colors.coral },
-          { l: 'Magic Realism', c: colors.lime },
-          { l: 'Essays', c: colors.lavender },
-          { l: 'Mystery · slow', c: colors.ink, dark: true },
-          { l: 'Memoir', c: colors.cream, outline: true },
-        ].map((g) => (
-          <View key={g.l} style={[styles.tag, { backgroundColor: g.c }, g.outline ? styles.tagOutline : null]}>
-            <Text style={[styles.tagText, g.dark ? { color: colors.cream } : { color: colors.ink }]}>{g.l}</Text>
-          </View>
-        ))}
-      </View>
+      {genres.length > 0 ? (
+        <View style={styles.tags}>
+          {genres.map((g, i) => {
+            const palette = GENRE_COLORS[i % GENRE_COLORS.length];
+            return (
+              <View key={g} style={[styles.tag, { backgroundColor: palette.c }, palette.outline ? styles.tagOutline : null]}>
+                <Text style={[styles.tagText, palette.dark ? { color: colors.cream } : { color: colors.ink }]}>{g}</Text>
+              </View>
+            );
+          })}
+        </View>
+      ) : (
+        <Text style={styles.emptyHint}>No genres selected yet</Text>
+      )}
 
-      <Text style={[styles.section, { marginTop: 18 }]}>Recently lived with</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rowBooks}>
-        {BOOKS.map((b, i) => (
-          <View key={b.id} style={{ alignItems: 'flex-start' }}>
-            <BookCover book={b} w={110} h={154} tilt={i % 2 ? 2 : -2} />
-            <Text style={styles.bookMeta}>★ {b.match}%</Text>
+      {styles_list.length > 0 && (
+        <>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.section, { marginTop: 18 }]}>Narrative styles</Text>
+            <Text style={styles.small}>{styles_list.length} selected</Text>
           </View>
-        ))}
-      </ScrollView>
+          <View style={styles.tags}>
+            {styles_list.map((s, i) => {
+              const palette = GENRE_COLORS[(i + 2) % GENRE_COLORS.length];
+              return (
+                <View key={s} style={[styles.tag, { backgroundColor: palette.c }, palette.outline ? styles.tagOutline : null]}>
+                  <Text style={[styles.tagText, palette.dark ? { color: colors.cream } : { color: colors.ink }]}>{s}</Text>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
+
+      <Text style={[styles.section, { marginTop: 18 }]}>Reading circles</Text>
+      <View style={styles.groupsRow}>
+        <View style={styles.groupCard}>
+          <Text style={styles.groupVal}>{createdCount}</Text>
+          <Text style={styles.groupLabel}>Created</Text>
+        </View>
+        <View style={[styles.groupCard, { backgroundColor: colors.lavender }]}>
+          <Text style={styles.groupVal}>{joinedCount}</Text>
+          <Text style={styles.groupLabel}>Joined</Text>
+        </View>
+      </View>
     </Screen>
   );
 }
@@ -145,6 +243,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
+  userAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarLetter: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.cream,
+  },
   name: {
     color: colors.cream,
     fontWeight: '800',
@@ -176,6 +287,19 @@ const styles = StyleSheet.create({
     color: 'rgba(251,246,235,0.85)',
     fontWeight: '600',
     lineHeight: 20,
+  },
+  discoverBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: radii.pill,
+    backgroundColor: colors.lime,
+  },
+  discoverBtnText: {
+    fontSize: 13,
+    fontWeight: '900',
+    color: colors.ink,
   },
   miniStats: {
     marginTop: 14,
@@ -281,17 +405,38 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  rowBooks: {
-    paddingHorizontal: 22,
-    gap: 12,
-    paddingTop: 10,
-    paddingBottom: 10,
+  emptyHint: {
+    marginHorizontal: 22,
+    marginTop: 10,
+    fontSize: 13,
+    color: 'rgba(22,16,46,0.4)',
+    fontStyle: 'italic',
   },
-  bookMeta: {
-    marginTop: 6,
-    fontSize: 9,
-    color: 'rgba(22,16,46,0.5)',
-    letterSpacing: 0.8,
+  groupsRow: {
+    marginTop: 10,
+    marginHorizontal: 22,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  groupCard: {
+    flex: 1,
+    borderRadius: radii.lg,
+    padding: 18,
+    backgroundColor: colors.lime,
+    alignItems: 'center',
+  },
+  groupVal: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: colors.ink,
+    letterSpacing: -1,
+  },
+  groupLabel: {
+    marginTop: 4,
+    fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: 'rgba(22,16,46,0.6)',
   },
 });

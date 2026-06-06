@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Screen } from '../components/Screen';
+import { NotificationsBell } from '../components/NotificationsBell';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
@@ -69,34 +70,52 @@ function GroupCard({ group, onPress }) {
   );
 }
 
-function EmptyState({ tab, navigation }) {
-  if (tab === 0) {
-    return (
-      <View style={styles.emptyBox}>
-        <Text style={styles.emptyIcon}>✦</Text>
-        <Text style={styles.emptyText}>You haven't created any circles yet</Text>
-        <Pressable
-          onPress={() => navigation.navigate(routes.CreateGroup)}
-          style={styles.emptyBtn}
-        >
-          <Text style={styles.emptyBtnText}>Create a circle</Text>
-        </Pressable>
-      </View>
-    );
-  }
+function DailyMatchBanner({ rec }) {
+  const book = rec.books ?? {};
+  const title = book.nombre_libro ?? '—';
+  const author = book.autor ?? '';
+  const genreRaw = book.genero ?? '';
+  const genres = (typeof genreRaw === 'string' ? genreRaw.split(',') : [genreRaw])
+    .map(g => String(g).trim()).filter(Boolean).slice(0, 2);
+  const score = Math.round((rec.final_score ?? 0) * 100);
+  const groupName = rec.recommendation_groups?.group_name ?? '';
+
   return (
-    <View style={styles.emptyBox}>
-      <Text style={styles.emptyIcon}>◎</Text>
-      <Text style={styles.emptyText}>You haven't joined any circles yet</Text>
-      <Pressable
-        onPress={() => navigation.navigate(routes.JoinGroup)}
-        style={styles.emptyBtn}
-      >
-        <Text style={styles.emptyBtnText}>Join with a link</Text>
-      </Pressable>
+    <View style={styles.banner}>
+      <View style={styles.bannerTop}>
+        <View style={styles.bannerKickerPill}>
+          <Text style={styles.bannerKicker}>★ Best match today</Text>
+        </View>
+        {groupName ? (
+          <Text style={styles.bannerGroup} numberOfLines={1}>in {groupName}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.bannerBody}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.bannerTitle} numberOfLines={2}>{title}</Text>
+          {author ? <Text style={styles.bannerAuthor} numberOfLines={1}>{author}</Text> : null}
+          {genres.length > 0 && (
+            <View style={styles.bannerGenres}>
+              {genres.map(g => (
+                <View key={g} style={styles.bannerGenrePill}>
+                  <Text style={styles.bannerGenreText}>{g}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.bannerScoreWrap}>
+          <Text style={styles.bannerScoreNum}>{score}</Text>
+          <Text style={styles.bannerScorePct}>%</Text>
+          <Text style={styles.bannerScoreLabel}>match</Text>
+        </View>
+      </View>
     </View>
   );
 }
+
 
 const TABS = ['My circles', 'Joined'];
 
@@ -106,6 +125,7 @@ export function HomeScreen({ navigation }) {
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState('');
+  const [dailyMatch, setDailyMatch] = useState(undefined); // undefined=loading, null=none
 
   const loadGroups = useCallback(async () => {
     if (!user?.id) return;
@@ -154,9 +174,43 @@ export function HomeScreen({ navigation }) {
     }
   }, [user?.id]);
 
+  const loadDailyMatch = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      const { data: memberRows } = await supabase
+        .from('group_members')
+        .select('group_id')
+        .eq('user_id', user.id);
+      const groupIds = (memberRows ?? []).map(r => r.group_id).filter(Boolean);
+      if (!groupIds.length) { setDailyMatch(null); return; }
+
+      const { data, error } = await supabase
+        .from('group_recommendations')
+        .select(`
+          final_score,
+          rank,
+          generated_at,
+          recommendation_groups (group_name),
+          books (nombre_libro, autor, genero)
+        `)
+        .eq('rank', 1)
+        .in('group_id', groupIds)
+        .order('final_score', { ascending: false })
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setDailyMatch(data ?? null);
+    } catch {
+      setDailyMatch(null);
+    }
+  }, [user?.id]);
+
   useFocusEffect(useCallback(() => {
     loadGroups();
-  }, [loadGroups]));
+    loadDailyMatch();
+  }, [loadGroups, loadDailyMatch]));
 
   const displayName = user?.name ?? 'Reader';
   const createdByMe = groups.filter(g => g.created_by === user?.id);
@@ -173,6 +227,17 @@ export function HomeScreen({ navigation }) {
         <View style={{ flex: 1 }}>
           <Text style={styles.kicker}>ReadMatch</Text>
           <Text style={styles.h1}>Hey, {displayName} ✦</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <NotificationsBell navigation={navigation} userId={user?.id} />
+          <Pressable
+            onPress={() => navigation.navigate(routes.Personality)}
+            style={styles.profileBtn}
+          >
+            <Text style={styles.profileBtnText}>
+              {user?.name?.[0]?.toUpperCase() ?? '?'}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -213,10 +278,20 @@ export function HomeScreen({ navigation }) {
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
       >
+        {/* ── Daily match banner ── */}
+        {dailyMatch === undefined ? null : dailyMatch === null ? (
+          <View style={styles.bannerEmpty}>
+            <Text style={styles.bannerEmptyIcon}>✦</Text>
+            <Text style={styles.bannerEmptyText}>
+              No recommendations yet — complete your profile and create a circle
+            </Text>
+          </View>
+        ) : (
+          <DailyMatchBanner rec={dailyMatch} />
+        )}
+
         {loadingGroups ? (
           <ActivityIndicator color={colors.purple} style={{ marginTop: 48 }} />
-        ) : filtered.length === 0 ? (
-          <EmptyState tab={activeTab} navigation={navigation} />
         ) : (
           filtered.map(g => (
             <GroupCard
@@ -227,31 +302,30 @@ export function HomeScreen({ navigation }) {
           ))
         )}
 
-        {/* Acciones siempre visibles al final */}
-        {!loadingGroups && (
-          <View style={styles.actionCards}>
-            <Pressable
-              onPress={() => navigation.navigate(routes.CreateGroup)}
-              style={styles.createCard}
-            >
-              <View style={styles.createIcon}>
-                <Text style={styles.createIconText}>✦</Text>
-              </View>
-              <Text style={styles.createText}>Create a circle</Text>
-              <Text style={styles.circleArrow}>›</Text>
-            </Pressable>
+        {!loadingGroups && activeTab === 0 && (
+          <Pressable
+            onPress={() => navigation.navigate(routes.CreateGroup)}
+            style={styles.createCard}
+          >
+            <View style={styles.createIcon}>
+              <Text style={styles.createIconText}>✦</Text>
+            </View>
+            <Text style={styles.createText}>Create a circle</Text>
+            <Text style={styles.circleArrow}>›</Text>
+          </Pressable>
+        )}
 
-            <Pressable
-              onPress={() => navigation.navigate(routes.JoinGroup)}
-              style={styles.joinCard}
-            >
-              <View style={styles.joinIcon}>
-                <Text style={styles.joinIconText}>◎</Text>
-              </View>
-              <Text style={styles.joinText}>Join a circle</Text>
-              <Text style={styles.circleArrow}>›</Text>
-            </Pressable>
-          </View>
+        {!loadingGroups && activeTab === 1 && (
+          <Pressable
+            onPress={() => navigation.navigate(routes.JoinGroup)}
+            style={styles.joinCard}
+          >
+            <View style={styles.joinIcon}>
+              <Text style={styles.joinIconText}>◎</Text>
+            </View>
+            <Text style={styles.joinText}>Join a circle</Text>
+            <Text style={styles.circleArrow}>›</Text>
+          </Pressable>
         )}
       </ScrollView>
     </Screen>
@@ -265,6 +339,24 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.purple,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileBtnText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: colors.cream,
   },
   kicker: {
     fontSize: 11,
@@ -410,33 +502,118 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
 
-  // Empty state
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: 40,
+  // Daily match banner
+  banner: {
+    backgroundColor: colors.ink,
+    borderRadius: radii.xl,
+    padding: 18,
     gap: 12,
   },
-  emptyIcon: {
-    fontSize: 32,
-    color: 'rgba(22,16,46,0.2)',
+  bannerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
-  emptyText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: 'rgba(22,16,46,0.45)',
-    textAlign: 'center',
-  },
-  emptyBtn: {
-    marginTop: 4,
+  bannerKickerPill: {
     borderRadius: radii.pill,
-    paddingVertical: 11,
-    paddingHorizontal: 24,
-    backgroundColor: colors.ink,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: colors.lime,
   },
-  emptyBtnText: {
-    fontSize: 14,
+  bannerKicker: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colors.ink,
+    letterSpacing: 0.6,
+  },
+  bannerGroup: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(251,246,235,0.5)',
+    flex: 1,
+  },
+  bannerBody: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 14,
+  },
+  bannerTitle: {
+    fontSize: 20,
     fontWeight: '900',
     color: colors.cream,
+    letterSpacing: -0.4,
+    lineHeight: 24,
+  },
+  bannerAuthor: {
+    marginTop: 4,
+    fontSize: 13,
+    fontStyle: 'italic',
+    fontWeight: '600',
+    color: 'rgba(251,246,235,0.6)',
+  },
+  bannerGenres: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 10,
+  },
+  bannerGenrePill: {
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  bannerGenreText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: 'rgba(251,246,235,0.8)',
+    letterSpacing: 0.3,
+  },
+  bannerScoreWrap: {
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  bannerScoreNum: {
+    fontSize: 48,
+    fontWeight: '900',
+    color: colors.lime,
+    letterSpacing: -2,
+    lineHeight: 50,
+  },
+  bannerScorePct: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: colors.lime,
+    marginTop: -8,
+  },
+  bannerScoreLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: 'rgba(251,246,235,0.4)',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 2,
+  },
+  bannerEmpty: {
+    borderRadius: radii.xl,
+    padding: 18,
+    backgroundColor: 'rgba(22,16,46,0.04)',
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(22,16,46,0.12)',
+    alignItems: 'center',
+    gap: 6,
+  },
+  bannerEmptyIcon: {
+    fontSize: 20,
+    color: 'rgba(22,16,46,0.2)',
+  },
+  bannerEmptyText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(22,16,46,0.4)',
+    textAlign: 'center',
+    lineHeight: 19,
   },
 
   // Action cards

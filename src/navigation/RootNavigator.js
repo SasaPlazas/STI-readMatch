@@ -27,6 +27,7 @@ import { JoinGroupScreen } from '../screens/JoinGroupScreen';
 import { PersonalityScreen } from '../screens/PersonalityScreen';
 import { SyncScreen } from '../screens/SyncScreen';
 import { TelegramScreen } from '../screens/TelegramScreen';
+import { NotificationsScreen } from '../screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const NO_HEADER = { headerShown: false };
@@ -61,6 +62,7 @@ function AppStack() {
       <Stack.Screen name={routes.Invite}         component={InviteScreen} />
       <Stack.Screen name={routes.GroupSettings}  component={GroupSettingsScreen} />
       <Stack.Screen name={routes.Sync}           component={SyncScreen} />
+      <Stack.Screen name={routes.Notifications}   component={NotificationsScreen} />
       <Stack.Screen name={routes.AllScreens}     component={AllScreensScreen} />
     </Stack.Navigator>
   );

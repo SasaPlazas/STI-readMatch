@@ -1,170 +1,263 @@
+import { useEffect, useState } from 'react';
+import { Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Screen } from '../components/Screen';
-import { Avatar } from '../components/Avatar';
-import { BookCover } from '../components/BookCover';
-import { Ring } from '../components/Ring';
-import { BOOKS, GROUPS, MEMBERS } from '../data/sample';
-import { getGroupRecommendations } from '../utils/recommendations';
+import { NotificationsBell } from '../components/NotificationsBell';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
-const COMPLEXITY_LABEL = { Low: 'Easy read', Medium: 'Balanced', High: 'Dense' };
+const BADGE_COLORS = [
+  colors.purple, colors.coral, colors.lavender,
+  colors.violet, colors.lime, '#E8E0FF',
+];
+
+function strHash(s = '') {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function groupInitials(name = '') {
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?';
+}
+function badgeColor(id = '') {
+  return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
+}
+
+function MemberCard({ member }) {
+  const prefs = member.user_preferences ?? {};
+  const archetype = prefs.archetype ?? '';
+  const username = prefs.username ?? '';
+  const label = archetype || username || 'Member';
+  const initial = archetype?.[0]?.toUpperCase() ?? username?.[0]?.toUpperCase() ?? '?';
+  const bg = badgeColor(member.user_id);
+  const dark = bg === colors.purple || bg === colors.violet;
+
+  return (
+    <View style={styles.memberCard}>
+      <View style={[styles.memberAvatar, { backgroundColor: bg }]}>
+        <Text style={[styles.memberAvatarText, dark && { color: colors.cream }]}>{initial}</Text>
+      </View>
+      <Text style={styles.memberLabel} numberOfLines={1}>{label}</Text>
+      {member.role === 'admin' && (
+        <View style={styles.adminBadge}>
+          <Text style={styles.adminText}>Admin</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+function RecCard({ rec, index }) {
+  const book = rec.books ?? {};
+  const title = book.nombre_libro ?? '—';
+  const author = book.autor ?? '';
+  const genreRaw = book.genero ?? '';
+  const genres = (typeof genreRaw === 'string' ? genreRaw.split(',') : [String(genreRaw)])
+    .map(g => g.trim()).filter(Boolean).slice(0, 2);
+  const score = Math.round((rec.final_score ?? 0) * 100);
+  const why = rec.explanation?.why_recommended ?? rec.explanation ?? null;
+  const isTop = index === 0;
+
+  return (
+    <View style={styles.recCard}>
+      <View style={[styles.rankPill, isTop && styles.rankPillTop]}>
+        <Text style={[styles.rankText, isTop && styles.rankTextTop]}>#{rec.rank}</Text>
+      </View>
+
+      <View style={styles.recInfo}>
+        <Text style={styles.recTitle} numberOfLines={2}>{title}</Text>
+        {author ? <Text style={styles.recAuthor} numberOfLines={1}>{author}</Text> : null}
+        {genres.length > 0 && (
+          <View style={styles.recGenres}>
+            {genres.map(g => (
+              <View key={g} style={styles.genrePill}>
+                <Text style={styles.genreText}>{g}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+        {why ? (
+          <Text style={styles.recReason} numberOfLines={3}>✦ {why}</Text>
+        ) : null}
+      </View>
+
+      <View style={[styles.scoreBubble, isTop && styles.scoreBubbleTop]}>
+        <Text style={[styles.scoreNum, isTop && styles.scoreNumTop]}>{score}</Text>
+        <Text style={[styles.scorePct, isTop && styles.scorePctTop]}>%</Text>
+      </View>
+    </View>
+  );
+}
 
 export function GroupDetailScreen({ navigation, route }) {
-  const { groupId } = route.params ?? { groupId: GROUPS[0].id };
-  const group = GROUPS.find((g) => g.id === groupId) ?? GROUPS[0];
-  const members = group.memberIds.map((id) => MEMBERS.find((m) => m.id === id)).filter(Boolean);
-  const recs = getGroupRecommendations(group.id, 3);
+  const { user } = useAuth();
+  const { groupId } = route.params ?? {};
+  const [group, setGroup] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [recs, setRecs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!groupId) { setLoading(false); return; }
+    async function load() {
+      try {
+        const [{ data: g }, { data: m }, { data: r }] = await Promise.all([
+          supabase
+            .from('recommendation_groups')
+            .select('id, group_name, vibe, telegram_chat_id, created_by')
+            .eq('id', groupId)
+            .maybeSingle(),
+          supabase
+            .from('group_members')
+            .select('user_id, role, user_preferences(username, archetype)')
+            .eq('group_id', groupId),
+          supabase
+            .from('group_recommendations')
+            .select('rank, final_score, explanation, books(nombre_libro, autor, genero)')
+            .eq('group_id', groupId)
+            .order('rank', { ascending: true })
+            .limit(3),
+        ]);
+        setGroup(g ?? null);
+        setMembers(m ?? []);
+        setRecs(r ?? []);
+      } catch (e) {
+        console.warn('GroupDetail load error:', e.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [groupId]);
+
+  const groupName = group?.group_name ?? '—';
+  const vibes = Array.isArray(group?.vibe) ? group.vibe : [];
+  const initials = groupInitials(groupName);
+  const headerBg = badgeColor(groupId ?? '');
+  const hasTelegram = Boolean(group?.telegram_chat_id);
+
+  function handleTelegram() {
+    Alert.alert(
+      'Coming soon',
+      'Las recomendaciones se enviarán al canal cuando el bot esté activo.',
+      [{ text: 'OK' }],
+    );
+  }
 
   return (
     <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
+      <ScrollView showsVerticalScrollIndicator={false}>
 
-      {/* ── Header ── */}
-      <LinearGradient colors={['#2B1B69', '#16102E']} style={styles.header}>
-        <Pressable onPress={() => navigation.goBack()} style={styles.back}>
-          <Text style={styles.backText}>‹</Text>
-        </Pressable>
+        {/* ── Header ── */}
+        <LinearGradient colors={['#2B1B69', '#16102E']} style={styles.header}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+            <Text style={styles.backText}>‹</Text>
+          </Pressable>
 
-        <View style={[styles.badge, { backgroundColor: group.color }]}>
-          <Text style={styles.badgeText}>{group.initials}</Text>
-        </View>
-        <Text style={styles.groupName}>{group.name}</Text>
-        <Text style={styles.groupMood}>{group.mood}</Text>
-
-        {/* Members strip */}
-        <View style={styles.membersStrip}>
-          {members.map((m, i) => (
-            <View key={m.id} style={{ marginLeft: i === 0 ? 0 : -10 }}>
-              <Avatar m={m} size={32} />
-            </View>
-          ))}
-          <Text style={styles.memberCount}>{members.length} members</Text>
-        </View>
-      </LinearGradient>
-
-      {/* ── This week's picks ── */}
-      <View style={styles.section}>
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>This week's picks</Text>
-          <View style={styles.autoBadge}>
-            <Text style={styles.autoBadgeText}>✦ AUTO</Text>
-          </View>
-        </View>
-        <Text style={styles.sectionSub}>
-          Generated from the combined tastes of your {members.length} members
-        </Text>
-
-        <View style={styles.recList}>
-          {recs.map((rec, index) => (
+          <View style={styles.headerRight}>
+            <NotificationsBell navigation={navigation} userId={user?.id} light />
             <Pressable
-              key={rec.book.id}
-              onPress={() => navigation.navigate(routes.Book)}
-              style={styles.recCard}
+              onPress={() => navigation.navigate(routes.Personality)}
+              style={styles.profileBtnLight}
             >
-              {/* Rank indicator */}
-              <View style={[styles.rankPill, index === 0 && styles.rankPillTop]}>
-                <Text style={[styles.rankText, index === 0 && styles.rankTextTop]}>#{rec.rank}</Text>
-              </View>
-
-              <BookCover book={rec.book} w={72} h={102} tilt={0} />
-
-              <View style={styles.recInfo}>
-                <Text style={styles.recTitle} numberOfLines={2}>{rec.book.title}</Text>
-                <Text style={styles.recAuthor}>{rec.book.author}</Text>
-                <Text style={styles.recGenre}>{rec.book.genre}</Text>
-
-                <View style={styles.recMeta}>
-                  <View style={styles.recComplexity}>
-                    <Text style={styles.recComplexityText}>{COMPLEXITY_LABEL[rec.book.complexity]}</Text>
-                  </View>
-                  <Text style={styles.recPages}>{rec.book.pages} pages</Text>
-                </View>
-
-                {rec.reasons[0] && (
-                  <Text style={styles.recReason} numberOfLines={2}>
-                    ✦ {rec.reasons[0]}
-                  </Text>
-                )}
-              </View>
-
-              <Ring
-                value={rec.score}
-                size={48}
-                stroke={5}
-                color={index === 0 ? colors.lime : colors.purple}
-                track="rgba(22,16,46,0.08)"
-                textColor={colors.ink}
-              />
+              <Text style={styles.profileBtnLightText}>
+                {user?.name?.[0]?.toUpperCase() ?? '?'}
+              </Text>
             </Pressable>
-          ))}
-        </View>
-      </View>
+          </View>
 
-      {/* ── Recent updates ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recent updates</Text>
-        <Text style={styles.sectionSub}>What happened in this circle lately</Text>
+          <View style={[styles.badge, { backgroundColor: headerBg }]}>
+            <Text style={styles.badgeText}>{initials}</Text>
+          </View>
+          <Text style={styles.groupName}>{groupName}</Text>
 
-        <View style={styles.updateList}>
-          {group.activities.map((a, i) => (
-            <View key={i} style={styles.updateRow}>
-              <Avatar m={a.who} size={34} />
-              <View style={styles.updateInfo}>
-                <Text style={styles.updateText}>
-                  <Text style={styles.updateName}>{a.who.name}</Text>
-                  {' '}{a.action}{' '}
-                  <Text style={styles.updateTarget}>{a.target}</Text>
-                </Text>
-                <Text style={styles.updateMeta}>{a.meta} ago</Text>
-              </View>
-              <View style={[styles.updateIcon, { backgroundColor: a.tone }]}>
-                <Text style={styles.updateIconText}>{a.icon}</Text>
-              </View>
+          {vibes.length > 0 && (
+            <View style={styles.vibeRow}>
+              {vibes.slice(0, 4).map(v => (
+                <View key={v} style={styles.vibePill}>
+                  <Text style={styles.vibePillText}>{v}</Text>
+                </View>
+              ))}
             </View>
-          ))}
+          )}
 
-          {group.activities.length === 0 && (
-            <View style={styles.emptyUpdates}>
-              <Text style={styles.emptyText}>No recent activity · check back soon</Text>
+          <Text style={styles.memberCount}>{members.length} member{members.length !== 1 ? 's' : ''}</Text>
+        </LinearGradient>
+
+        {/* ── Members ── */}
+        {!loading && members.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Members</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.membersRow}
+            >
+              {members.map(m => (
+                <MemberCard key={m.user_id} member={m} />
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* ── Book recommendations ── */}
+        <View style={styles.section}>
+          <View style={styles.sectionHead}>
+            <Text style={styles.sectionTitle}>Top picks</Text>
+            <View style={styles.autoBadge}>
+              <Text style={styles.autoBadgeText}>✦ AUTO</Text>
+            </View>
+          </View>
+
+          {loading ? null : recs.length === 0 ? (
+            <View style={styles.emptyRecs}>
+              <Text style={styles.emptyRecsText}>
+                No recommendations yet — the engine runs once your circle has members and preferences.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.recList}>
+              {recs.map((rec, i) => (
+                <RecCard key={rec.rank} rec={rec} index={i} />
+              ))}
             </View>
           )}
         </View>
-      </View>
 
-      {/* ── Telegram ── */}
-      <View style={styles.section}>
-        <Pressable
-          onPress={() => navigation.navigate(routes.Telegram)}
-          style={styles.tgCard}
-        >
-          <View style={styles.tgIconWrap}>
-            <Text style={styles.tgIconText}>↗</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <View style={styles.tgTitleRow}>
-              <Text style={styles.tgTitle}>Open in Telegram</Text>
-              <View style={styles.tgLive}>
-                <Text style={styles.tgLiveText}>● LIVE</Text>
+        {/* ── Telegram ── */}
+        {!loading && hasTelegram && (
+          <View style={styles.section}>
+            <Pressable onPress={handleTelegram} style={styles.tgCard}>
+              <View style={styles.tgIconWrap}>
+                <Text style={styles.tgIconText}>↗</Text>
               </View>
-            </View>
-            <Text style={styles.tgSub}>
-              See recommendations and updates in the group channel · synced automatically
-            </Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tgTitle}>Send to Telegram</Text>
+                <Text style={styles.tgSub}>
+                  Push today's top picks to the group channel
+                </Text>
+              </View>
+              <Text style={styles.tgArrow}>›</Text>
+            </Pressable>
           </View>
-          <Text style={styles.tgArrow}>›</Text>
-        </Pressable>
-      </View>
+        )}
 
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 36 },
+  content: { paddingBottom: 0 },
+
+  // Header
   header: {
-    paddingTop: 54, paddingHorizontal: 22, paddingBottom: 28,
-    alignItems: 'center', gap: 6,
+    paddingTop: 54, paddingHorizontal: 22, paddingBottom: 24,
+    alignItems: 'center', gap: 8,
   },
   back: {
     position: 'absolute', top: 14, left: 16,
@@ -173,22 +266,59 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   backText: { fontSize: 22, color: colors.cream, fontWeight: '900', marginTop: -2 },
-  badge: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  headerRight: {
+    position: 'absolute', top: 14, right: 16,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+  },
+  profileBtnLight: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  profileBtnLightText: { fontSize: 15, fontWeight: '900', color: colors.cream },
+  badge: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontSize: 26, fontWeight: '900', color: colors.ink, letterSpacing: -0.5 },
-  groupName: { fontSize: 28, fontWeight: '900', color: colors.cream, letterSpacing: -0.8 },
-  groupMood: { fontSize: 14, fontStyle: 'italic', color: 'rgba(251,246,235,0.6)', fontWeight: '600' },
-  membersStrip: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 },
-  memberCount: { fontSize: 13, fontWeight: '700', color: 'rgba(251,246,235,0.7)' },
-  section: { paddingHorizontal: 22, paddingTop: 26 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  groupName: { fontSize: 26, fontWeight: '900', color: colors.cream, letterSpacing: -0.6, textAlign: 'center' },
+  vibeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 2 },
+  vibePill: {
+    borderRadius: radii.pill, paddingVertical: 4, paddingHorizontal: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  vibePillText: { fontSize: 11, fontWeight: '700', color: 'rgba(251,246,235,0.85)' },
+  memberCount: { fontSize: 12, fontWeight: '700', color: 'rgba(251,246,235,0.5)', marginTop: 2 },
+
+  // Sections
+  section: { paddingHorizontal: 22, paddingTop: 24 },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   sectionTitle: { fontSize: 20, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
-  sectionSub: { fontSize: 13, fontWeight: '600', color: 'rgba(22,16,46,0.5)', lineHeight: 18, marginBottom: 16 },
   autoBadge: { borderRadius: radii.pill, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: colors.lime },
   autoBadgeText: { fontSize: 10, fontWeight: '900', color: colors.ink, letterSpacing: 0.8 },
+
+  // Members
+  membersRow: { gap: 10, paddingTop: 12, paddingBottom: 4 },
+  memberCard: {
+    alignItems: 'center', gap: 6, width: 72,
+  },
+  memberAvatar: {
+    width: 48, height: 48, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  memberAvatarText: { fontSize: 18, fontWeight: '900', color: colors.ink },
+  memberLabel: {
+    fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.6)',
+    textAlign: 'center', width: 72,
+  },
+  adminBadge: {
+    borderRadius: radii.pill, paddingVertical: 2, paddingHorizontal: 7,
+    backgroundColor: colors.lime,
+  },
+  adminText: { fontSize: 9, fontWeight: '900', color: colors.ink, letterSpacing: 0.4 },
+
+  // Rec cards
   recList: { gap: 12 },
   recCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: colors.white, borderRadius: radii.xl, padding: 14,
+    backgroundColor: colors.white, borderRadius: radii.xl, padding: 16,
     borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)',
     position: 'relative',
   },
@@ -200,47 +330,47 @@ const styles = StyleSheet.create({
   rankPillTop: { backgroundColor: colors.lime },
   rankText: { fontSize: 10, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
   rankTextTop: { color: colors.ink },
-  recInfo: { flex: 1, paddingTop: 20, gap: 3 },
+  recInfo: { flex: 1, paddingTop: 22, gap: 4 },
   recTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3, lineHeight: 20 },
-  recAuthor: { fontSize: 13, fontStyle: 'italic', color: 'rgba(22,16,46,0.6)', fontWeight: '600' },
-  recGenre: { fontSize: 10, fontWeight: '800', color: 'rgba(22,16,46,0.4)', letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 2 },
-  recMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
-  recComplexity: { borderRadius: radii.pill, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: colors.mist },
-  recComplexityText: { fontSize: 10, fontWeight: '800', color: colors.purple },
-  recPages: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.45)' },
-  recReason: { fontSize: 12, fontWeight: '600', color: colors.purple, marginTop: 6, lineHeight: 16 },
-  updateList: { gap: 10 },
-  updateRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    backgroundColor: colors.white, borderRadius: radii.lg, padding: 12,
-    borderWidth: 1, borderColor: 'rgba(22,16,46,0.05)',
+  recAuthor: { fontSize: 13, fontStyle: 'italic', color: 'rgba(22,16,46,0.55)', fontWeight: '600' },
+  recGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 },
+  genrePill: {
+    borderRadius: radii.pill, paddingVertical: 3, paddingHorizontal: 8,
+    backgroundColor: 'rgba(124,91,255,0.1)',
   },
-  updateInfo: { flex: 1, minWidth: 0 },
-  updateText: { fontSize: 13, color: colors.ink, lineHeight: 18 },
-  updateName: { fontWeight: '900' },
-  updateTarget: { color: colors.inkSoft },
-  updateMeta: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', letterSpacing: 0.6, marginTop: 3 },
-  updateIcon: { width: 30, height: 30, borderRadius: 9, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  updateIconText: { fontSize: 14, fontWeight: '900', color: colors.ink },
-  emptyUpdates: { padding: 16, alignItems: 'center' },
-  emptyText: { fontSize: 13, color: 'rgba(22,16,46,0.4)', fontWeight: '600' },
+  genreText: { fontSize: 10, fontWeight: '800', color: colors.purple },
+  recReason: { fontSize: 12, fontWeight: '600', color: colors.purple, marginTop: 8, lineHeight: 17 },
+  scoreBubble: {
+    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 52, height: 52, borderRadius: 16,
+    backgroundColor: 'rgba(22,16,46,0.06)',
+    marginTop: 22,
+  },
+  scoreBubbleTop: { backgroundColor: colors.lime },
+  scoreNum: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)', lineHeight: 20 },
+  scoreNumTop: { color: colors.ink },
+  scorePct: { fontSize: 9, fontWeight: '800', color: 'rgba(22,16,46,0.4)', marginTop: -2 },
+  scorePctTop: { color: 'rgba(22,16,46,0.6)' },
+
+  // Empty recs
+  emptyRecs: {
+    padding: 20, borderRadius: radii.xl,
+    backgroundColor: 'rgba(22,16,46,0.04)',
+    borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(22,16,46,0.12)',
+  },
+  emptyRecsText: { fontSize: 13, fontWeight: '600', color: 'rgba(22,16,46,0.4)', lineHeight: 19 },
+
+  // Telegram
   tgCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: colors.ink, borderRadius: radii.xl, padding: 16,
   },
   tgIconWrap: {
-    width: 46, height: 46, borderRadius: 14,
-    backgroundColor: colors.lime,
+    width: 46, height: 46, borderRadius: 14, backgroundColor: colors.lime,
     alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
   tgIconText: { fontSize: 20, fontWeight: '900', color: colors.ink },
-  tgTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  tgTitle: { fontSize: 16, fontWeight: '900', color: colors.cream },
-  tgLive: {
-    borderRadius: 6, paddingVertical: 2, paddingHorizontal: 7,
-    backgroundColor: '#E8F8D5',
-  },
-  tgLiveText: { fontSize: 9, fontWeight: '900', color: '#3F6E12', letterSpacing: 0.6 },
+  tgTitle: { fontSize: 16, fontWeight: '900', color: colors.cream, marginBottom: 3 },
   tgSub: { fontSize: 12, fontWeight: '600', color: 'rgba(251,246,235,0.6)', lineHeight: 17 },
   tgArrow: { fontSize: 26, fontWeight: '900', color: 'rgba(251,246,235,0.3)', flexShrink: 0 },
 });
