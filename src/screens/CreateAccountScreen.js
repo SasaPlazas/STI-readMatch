@@ -42,20 +42,28 @@ export function CreateAccountScreen({ navigation }) {
   const [showPw, setShowPw] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [info, setInfo] = useState('');
+  const [error, setError] = useState('');
 
   const canSubmit = name.length >= 2 && email.includes('@') && password.length >= 6 && agreed;
 
-  function handleCreate() {
-    if (!canSubmit) return;
+  async function handleCreate() {
+    if (!canSubmit || loading) return;
     setLoading(true);
-    // Simula creación de cuenta — reemplazar con lógica real
-    setTimeout(() => {
+    setInfo('');
+    setError('');
+    try {
+      const result = await signUp({ email, password, name });
+      if (result?.needsEmailConfirmation) {
+        setInfo('Revisa tu correo y confirma tu cuenta antes de continuar con el onboarding.');
+        return;
+      }
+      navigation.reset({ index: 0, routes: [{ name: routes.OnbIdentity }] });
+    } catch (e) {
+      setError(e?.message || 'No se pudo crear la cuenta');
+    } finally {
       setLoading(false);
-      signUp({ email, name });
-      // signUp marca completedOnboarding: false
-      // RootNavigator mantiene al usuario en AuthStack → navega al onboarding
-      navigation.navigate(routes.OnbIdentity);
-    }, 1200);
+    }
   }
 
   return (
@@ -93,7 +101,7 @@ export function CreateAccountScreen({ navigation }) {
               <Text style={styles.fieldLabel}>Your name</Text>
               <TextInput
                 value={name}
-                onChangeText={setName}
+                onChangeText={(v) => { setName(v); setError(''); setInfo(''); }}
                 placeholder="How should we call you?"
                 placeholderTextColor="rgba(22,16,46,0.35)"
                 autoCapitalize="words"
@@ -106,7 +114,7 @@ export function CreateAccountScreen({ navigation }) {
               <Text style={styles.fieldLabel}>Email</Text>
               <TextInput
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => { setEmail(v); setError(''); setInfo(''); }}
                 placeholder="you@example.com"
                 placeholderTextColor="rgba(22,16,46,0.35)"
                 keyboardType="email-address"
@@ -122,7 +130,7 @@ export function CreateAccountScreen({ navigation }) {
               <View style={styles.fieldPwWrap}>
                 <TextInput
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(v) => { setPassword(v); setError(''); setInfo(''); }}
                   placeholder="Min. 6 characters"
                   placeholderTextColor="rgba(22,16,46,0.35)"
                   secureTextEntry={!showPw}
@@ -148,6 +156,18 @@ export function CreateAccountScreen({ navigation }) {
                 <Text style={styles.termsLink}>Privacy Policy</Text>
               </Text>
             </Pressable>
+
+            {info ? (
+              <View style={styles.infoBox}>
+                <Text style={styles.infoText}>{info}</Text>
+              </View>
+            ) : null}
+
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
 
             {/* Submit */}
             <Pressable
@@ -252,6 +272,10 @@ const styles = StyleSheet.create({
   checkboxCheck: { fontSize: 13, fontWeight: '900', color: colors.white },
   termsText: { flex: 1, fontSize: 13, color: 'rgba(22,16,46,0.7)', fontWeight: '600', lineHeight: 19 },
   termsLink: { color: colors.purple, fontWeight: '800', textDecorationLine: 'underline' },
+  infoBox: { backgroundColor: 'rgba(212,255,61,0.24)', borderRadius: radii.sm, padding: 12 },
+  infoText: { fontSize: 13, fontWeight: '700', color: '#3F6E12' },
+  errorBox: { backgroundColor: 'rgba(255,126,107,0.12)', borderRadius: radii.sm, padding: 12 },
+  errorText: { fontSize: 13, fontWeight: '700', color: '#C0392B' },
   submitBtn: {
     height: 56,
     borderRadius: radii.pill,

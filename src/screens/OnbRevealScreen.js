@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../context/AuthContext';
@@ -25,6 +25,8 @@ const PAIRS = [
 
 export function OnbRevealScreen({ navigation }) {
   const { completeOnboarding } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const anim1 = useRef(new Animated.Value(0)).current;
   const anim2 = useRef(new Animated.Value(0)).current;
   const anim3 = useRef(new Animated.Value(0)).current;
@@ -132,7 +134,30 @@ export function OnbRevealScreen({ navigation }) {
 
         <Animated.View style={[styles.cta, { opacity: anim3 }]}>
           <LinearGradient colors={['rgba(22,16,46,0)', 'rgba(22,16,46,0.92)']} style={styles.ctaGrad}>
-            <RMButton title="Enter ReadMatch →" variant="primary" onPress={completeOnboarding} style={styles.ctaBtn} />
+            {error ? (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+            <RMButton
+              title={loading ? 'Entering…' : 'Enter ReadMatch →'}
+              variant="primary"
+              onPress={async () => {
+                if (loading) return;
+                setError('');
+                setLoading(true);
+                try {
+                  await completeOnboarding();
+                  // RootNavigator cambiará automáticamente a AppStack
+                  // cuando el usuario tenga completedOnboarding = true.
+                } catch (err) {
+                  setError(err?.message || 'No se pudo entrar a ReadMatch');
+                } finally {
+                  setLoading(false);
+                }
+              }}
+              style={styles.ctaBtn}
+            />
           </LinearGradient>
         </Animated.View>
       </SafeAreaView>
@@ -179,6 +204,8 @@ const styles = StyleSheet.create({
   shareBtn: { borderRadius: radii.pill, paddingVertical: 8, paddingHorizontal: 14, backgroundColor: colors.cream },
   shareBtnText: { color: colors.ink, fontWeight: '900', fontSize: 12 },
   cta: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  errorBox: { backgroundColor: 'rgba(255,126,107,0.12)', borderRadius: radii.sm, padding: 12, marginBottom: 14 },
+  errorText: { fontSize: 13, fontWeight: '700', color: '#C0392B' },
   ctaGrad: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 36 },
   ctaBtn: { backgroundColor: colors.lime },
 });

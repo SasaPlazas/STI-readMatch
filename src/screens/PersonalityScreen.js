@@ -1,17 +1,28 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '../components/Avatar';
 import { BookCover } from '../components/BookCover';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
+import { useAuth } from '../context/AuthContext';
 import { BOOKS, MEMBERS } from '../data/sample';
 import { colors, radii } from '../theme/tokens';
 
 export function PersonalityScreen({ navigation }) {
+  const { signOut } = useAuth();
   return (
     <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
       <LinearGradient colors={[colors.lavender, colors.cream]} start={{ x: 0.3, y: 0 }} end={{ x: 0.7, y: 1 }} style={styles.hero}>
-        <TopBar subtitle="Reading identity · Iris" title={null} onBack={() => navigation.goBack()} />
+        <TopBar
+          subtitle="Reading identity · Iris"
+          title={null}
+          onBack={() => navigation.goBack()}
+          right={
+            <Pressable accessibilityRole="button" onPress={signOut} style={styles.logoutBtn}>
+              <Text style={styles.logoutText}>Salir</Text>
+            </Pressable>
+          }
+        />
 
         <View style={styles.profileCard}>
           <View style={styles.profileTop}>
@@ -102,6 +113,20 @@ const styles = StyleSheet.create({
   },
   hero: {
     paddingBottom: 18,
+  },
+  logoutBtn: {
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: radii.pill,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutText: {
+    color: colors.cream,
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 0.4,
   },
   profileCard: {
     marginTop: 10,
@@ -270,4 +295,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

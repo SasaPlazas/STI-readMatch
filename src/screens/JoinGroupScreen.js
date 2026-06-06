@@ -29,7 +29,7 @@ export function JoinGroupScreen({ navigation }) {
   }
 
   function goToPreview(group) {
-    navigation.navigate(routes.GroupPreview, { group });
+    navigation.navigate(routes.GroupPreview, { groupId: group.id });
   }
 
   return (
