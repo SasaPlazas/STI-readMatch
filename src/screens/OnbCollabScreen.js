@@ -1,47 +1,154 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
-import { Avatar } from "../components/Avatar";
 import { RMButton } from "../components/RMButton";
 import { supabase } from "../lib/supabase";
-import { insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
+import { createGroupWithMembers, insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
 import { useAuth } from "../context/AuthContext";
-import { MEMBERS } from "../data/sample";
 import { colors, radii } from "../theme/tokens";
-import { routes } from "../navigation/routes";
 
-const VIBES = [
-  { id: "curious", label: "Curious", color: colors.lime, icon: "✦" },
-  { id: "cozy", label: "Cozy", color: colors.coral, icon: "◐" },
-  { id: "sharp", label: "Sharp", color: colors.purple, icon: "◇" },
-  { id: "wild", label: "Wild", color: colors.lavender, icon: "⚡" },
+const VIBE_CATEGORIES = [
+  {
+    label: "Estilos",
+    options: ["Dark Academia","Cozy Fantasy","Psychological","Emotional","Philosophical","Fast Thrillers","Sci-Fi","Character-driven"],
+  },
+  {
+    label: "Géneros",
+    options: ["Literary","Fantasy","Mystery","Romance","Memoir","History","Horror","Essays","Poetry","Climate","Politics"],
+  },
+  {
+    label: "Ritmo",
+    options: ["Light & fast","Balanced & immersive","Deep & philosophical","Experimental"],
+  },
 ];
+const MAX_VIBES = 5;
 
-const SYNC_TAGS = ["Members ↔", "Votes ↔", "Recs →", "Highlights ←"];
-
-export function OnbCollabScreen({ navigation }) {
+export function OnbCollabScreen() {
   const { completeOnboarding } = useAuth();
   const [name, setName] = useState("Slow Burners");
-  const [vibe, setVibe] = useState("curious");
-  const [tgOn, setTgOn] = useState(true);
+  const [selectedVibes, setSelectedVibes] = useState([]);
+  const [vibeError, setVibeError] = useState("");
+  const [tgOn, setTgOn] = useState(false);
+  const [friendQuery, setFriendQuery] = useState("");
+  const [friendResults, setFriendResults] = useState([]);
+  const [friendSearching, setFriendSearching] = useState(false);
+  const [selectedFriends, setSelectedFriends] = useState([]);
   const [saving, setSaving] = useState(false);
   const [skipLoading, setSkipLoading] = useState(false);
   const [error, setError] = useState("");
+  const [groupLink, setGroupLink] = useState(null);
   const savingRef = useRef(false);
+  const selectedFriendsRef = useRef(selectedFriends);
+  useEffect(() => { selectedFriendsRef.current = selectedFriends; }, [selectedFriends]);
 
-  const selectedVibe = VIBES.find((v) => v.id === vibe);
+  useEffect(() => {
+    if (friendQuery.trim().length < 2) { setFriendResults([]); return; }
+    setFriendSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data } = await supabase.rpc("search_users", { query: friendQuery.trim() });
+        setFriendResults(
+          (data ?? []).filter((r) => !selectedFriendsRef.current.some((f) => f.user_id === r.user_id))
+        );
+      } catch (_) {}
+      setFriendSearching(false);
+    }, 500);
+    return () => clearTimeout(t);
+  }, [friendQuery]);
+
+  const toggleVibe = (label) => {
+    setVibeError("");
+    if (selectedVibes.includes(label)) {
+      setSelectedVibes((v) => v.filter((x) => x !== label));
+    } else {
+      if (selectedVibes.length >= MAX_VIBES) { setVibeError("Máximo 5 vibes por grupo"); return; }
+      setSelectedVibes((v) => [...v, label]);
+    }
+  };
+
+  const friendLabel = (f) => f.username || f.email?.split("@")[0] || "?";
+
+  const addFriend = (f) => {
+    setSelectedFriends((prev) => [...prev, f]);
+    setFriendResults((r) => r.filter((x) => x.user_id !== f.user_id));
+    setFriendQuery("");
+  };
 
   const onSkip = async () => {
     if (savingRef.current || skipLoading) return;
     setSkipLoading(true);
+    try { await completeOnboarding(); }
+    catch (e) { setError(e?.message || "No se pudo continuar"); setSkipLoading(false); }
+  };
+
+  const onCreate = async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    setSaving(true);
     setError("");
     try {
-      await completeOnboarding();
+      const groupId = await createGroupWithMembers({
+        groupName: name.trim() || "My Circle",
+        vibes: selectedVibes,
+        tgOn,
+        friendUserIds: selectedFriends.map((f) => f.user_id),
+      });
+      try { await upsertUserPreferences({ onboarding_completed: true }); } catch (_) {}
+      try {
+        if (selectedVibes.length) {
+          await insertUserWeights([{ category: "circle_vibe", item: selectedVibes.join(","), score: 1 }]);
+        }
+      } catch (e) { console.warn("weights:", e?.message); }
+      setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
-      setError(e?.message || "No se pudo continuar");
-      setSkipLoading(false);
+      setError(e?.message || "No se pudo crear tu círculo");
+    } finally {
+      savingRef.current = false;
+      setSaving(false);
     }
   };
+
+  if (groupLink) {
+    return (
+      <Screen
+        backgroundColor={colors.ink}
+        footer={
+          <RMButton
+            title={saving ? "Entrando…" : "Enter ReadMatch →"}
+            variant="primary"
+            disabled={saving}
+            onPress={async () => {
+              setSaving(true);
+              try { await completeOnboarding(); }
+              catch (e) { setError(e?.message || ""); setSaving(false); }
+            }}
+          />
+        }
+      >
+        <View style={styles.linkWrap}>
+          <Text style={styles.linkKicker}>✦ Tu círculo está listo</Text>
+          <Text style={styles.linkTitle}>
+            Comparte este{"\n"}
+            <Text style={styles.linkAccent}>link</Text>
+          </Text>
+          <Text style={styles.linkSub}>con tus amigos para que se unan a tu círculo.</Text>
+          <TextInput
+            value={groupLink}
+            editable={false}
+            selectTextOnFocus
+            style={styles.linkInput}
+          />
+          <Text style={styles.linkHint}>Selecciona el texto para copiarlo</Text>
+          {tgOn && (
+            <Text style={styles.linkTgNote}>
+              El bot de Telegram se activará cuando conectes el bot — por ahora es un placeholder.
+            </Text>
+          )}
+          {error ? <Text style={styles.linkError}>{error}</Text> : null}
+        </View>
+      </Screen>
+    );
+  }
 
   return (
     <Screen
@@ -49,507 +156,214 @@ export function OnbCollabScreen({ navigation }) {
       footer={
         <View style={{ gap: 10 }}>
           <RMButton
-            title={saving ? "Saving…" : "Create my circle ✦"}
+            title={saving ? "Guardando…" : "Create my circle ✦"}
             variant={!saving ? "dark" : "ghost"}
             disabled={saving || skipLoading}
-            onPress={async () => {
-            if (savingRef.current) return;
-            savingRef.current = true;
-            setSaving(true);
-            setError("");
-            let shouldNavigate = true;
-            try {
-              // 1. Create group + add user as admin via SECURITY DEFINER function
-              //    (avoids RLS infinite recursion on group_members)
-              const { error: rpcError } = await supabase.rpc(
-                "create_group_with_admin",
-                {
-                  p_group_name: name.trim() || "My Circle",
-                  p_vibe: vibe,
-                  p_telegram_chat_id: tgOn ? "pending" : null,
-                }
-              );
-              if (rpcError) throw rpcError;
-
-              // 2. Mark onboarding complete in user_preferences
-              await upsertUserPreferences({ onboarding_completed: true });
-
-              // 5. Non-critical: save weights for recommendation engine
-              try {
-                await insertUserWeights([
-                  { category: "circle_vibe", item: vibe, score: 1 },
-                  { category: "telegram", item: "enabled", score: tgOn ? 1 : 0 },
-                  { category: "circle_name", item: name.trim() || "Circle", score: 1 },
-                ]);
-              } catch (e) {
-                console.warn("user_weights (non-critical):", e?.message);
-              }
-            } catch (e) {
-              setError(e?.message || "No se pudo crear tu círculo");
-              shouldNavigate = false;
-            } finally {
-              savingRef.current = false;
-              setSaving(false);
-            }
-            if (shouldNavigate) {
-              await completeOnboarding();
-            }
-          }}
+            onPress={onCreate}
           />
-          <Pressable
-            onPress={onSkip}
-            disabled={saving || skipLoading}
-            style={styles.skipBtn}
-          >
-            <Text style={styles.skipBtnText}>
-              {skipLoading ? "Entering ReadMatch…" : "Later →"}
-            </Text>
+          <Pressable onPress={onSkip} disabled={saving || skipLoading} style={styles.skipBtn}>
+            <Text style={styles.skipText}>{skipLoading ? "Entering…" : "Later →"}</Text>
           </Pressable>
         </View>
       }
     >
       <View style={styles.progress}>
         <View style={styles.dots}>
-          {[1, 2, 3, 4, 5].map((i) => (
-            <View key={i} style={[styles.dot, styles.dotOn]} />
-          ))}
+          {[1,2,3,4,5].map((i) => <View key={i} style={[styles.dot, styles.dotOn]} />)}
         </View>
         <Text style={styles.stepLabel}>05 / 05</Text>
       </View>
 
       <View style={styles.header}>
-        <Text style={styles.kicker}>★ Chapter four</Text>
+        <Text style={styles.kicker}>★ Chapter five</Text>
         <Text style={styles.title}>
           Create your{"\n"}
           <Text style={styles.titleItalic}>circle</Text>
         </Text>
         <Text style={styles.subtitle}>
-          Start your own reading circle — or skip this step and jump straight to
-          the dashboard.
+          Start your own reading circle — or skip and jump straight to the dashboard.
         </Text>
       </View>
-      {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-        </View>
-      ) : null}
 
-      {/* Q1 — Name */}
+      {error ? <View style={styles.errorBox}><Text style={styles.errorText}>{error}</Text></View> : null}
+
+      {/* Q01 — Name */}
       <View style={styles.card}>
         <Text style={styles.cardQ}>Q · 01</Text>
         <Text style={styles.cardTitle}>Name your circle</Text>
-        <View style={styles.nameRow}>
-          <View
-            style={[
-              styles.circleIcon,
-              { backgroundColor: selectedVibe?.color ?? colors.purple },
-            ]}
-          >
-            <Text style={styles.circleInitials}>
-              {name
-                .split(" ")
-                .map((w) => w[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase()}
-            </Text>
-          </View>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            style={styles.nameInput}
-            placeholder="Circle name…"
-            placeholderTextColor="rgba(22,16,46,0.35)"
-          />
-        </View>
-        <View style={styles.vibes}>
-          {VIBES.map((v) => {
-            const on = vibe === v.id;
-            return (
-              <Pressable
-                key={v.id}
-                onPress={() => setVibe(v.id)}
-                style={[
-                  styles.vibeChip,
-                  on && {
-                    backgroundColor: v.color,
-                    borderColor: colors.ink,
-                    borderWidth: 1.5,
-                  },
-                ]}
-              >
-                <Text style={styles.vibeIcon}>{v.icon}</Text>
-                <Text style={styles.vibeLabel}>{v.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          style={styles.nameInput}
+          placeholder="Circle name…"
+          placeholderTextColor="rgba(22,16,46,0.35)"
+        />
       </View>
 
-      {/* Q2 — Invite */}
+      {/* Q02 — Vibes */}
       <View style={styles.card}>
-        <Text style={styles.cardQ}>Q · 02</Text>
-        <Text style={styles.cardTitle}>Invite a friend or two</Text>
-        <View style={styles.inviteRow}>
-          {MEMBERS.slice(0, 3).map((m) => (
-            <View key={m.id} style={styles.inviteSlot}>
-              <Avatar m={m} size={48} />
-              <Text style={styles.inviteName}>{m.name.toUpperCase()}</Text>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardQ}>Q · 02</Text>
+          <Text style={[styles.vibeCount, selectedVibes.length > 0 && styles.vibeCountActive]}>
+            {selectedVibes.length} / {MAX_VIBES}
+          </Text>
+        </View>
+        <Text style={styles.cardTitle}>¿Qué leerá tu círculo?</Text>
+        {vibeError ? <Text style={styles.vibeError}>{vibeError}</Text> : null}
+        {VIBE_CATEGORIES.map((cat) => (
+          <View key={cat.label} style={styles.vibeGroup}>
+            <Text style={styles.vibeCatLabel}>{cat.label}</Text>
+            <View style={styles.vibeChips}>
+              {cat.options.map((opt) => {
+                const on = selectedVibes.includes(opt);
+                return (
+                  <Pressable key={`${cat.label}-${opt}`} onPress={() => toggleVibe(opt)} style={[styles.vibeChip, on && styles.vibeChipOn]}>
+                    <Text style={[styles.vibeChipText, on && styles.vibeChipTextOn]}>{opt}</Text>
+                  </Pressable>
+                );
+              })}
             </View>
-          ))}
-          {[1, 2].map((i) => (
-            <Pressable key={i} style={styles.inviteSlot}>
-              <View style={styles.inviteEmpty}>
-                <Text style={styles.inviteEmptyText}>+</Text>
-              </View>
-              <Text style={styles.inviteName}>ADD</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={styles.methodRow}>
-          {[
-            { label: "Link", bg: colors.ink, text: colors.cream },
-            { label: "QR code", bg: colors.purple, text: colors.cream },
-            { label: "Telegram", bg: colors.lime, text: colors.ink },
-          ].map((m) => (
-            <Pressable
-              key={m.label}
-              style={[styles.methodBtn, { backgroundColor: m.bg }]}
-            >
-              <Text style={[styles.methodBtnText, { color: m.text }]}>
-                {m.label}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
+          </View>
+        ))}
+        <Text style={styles.vibeHint}>
+          Esto nos da una idea del tipo de lecturas que busca tu grupo, pero las recomendaciones siempre se adaptan a los gustos reales de cada miembro.
+        </Text>
       </View>
 
-      {/* Q3 — Telegram toggle */}
+      {/* Q03 — Friends */}
+      <View style={styles.card}>
+        <Text style={styles.cardQ}>Q · 03</Text>
+        <Text style={styles.cardTitle}>Invita amigos</Text>
+        <View style={styles.searchRow}>
+          <TextInput
+            value={friendQuery}
+            onChangeText={setFriendQuery}
+            style={styles.searchInput}
+            placeholder="Buscar por username…"
+            placeholderTextColor="rgba(22,16,46,0.35)"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {friendSearching && <Text style={styles.spinner}>···</Text>}
+        </View>
+        {friendResults.length > 0 && (
+          <View style={styles.results}>
+            {friendResults.map((r) => (
+              <Pressable key={r.user_id} style={styles.resultRow} onPress={() => addFriend(r)}>
+                <View style={styles.resultAvatar}>
+                  <Text style={styles.resultAvatarText}>{friendLabel(r)[0].toUpperCase()}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.resultName}>{friendLabel(r)}</Text>
+                  {r.username && r.email ? <Text style={styles.resultEmail}>{r.email}</Text> : null}
+                </View>
+                <Text style={styles.resultAdd}>+ Invitar</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {selectedFriends.length > 0 && (
+          <View style={styles.selectedRow}>
+            {selectedFriends.map((f) => (
+              <Pressable
+                key={f.user_id}
+                style={styles.selectedChip}
+                onPress={() => setSelectedFriends((p) => p.filter((x) => x.user_id !== f.user_id))}
+              >
+                <Text style={styles.selectedName}>{friendLabel(f)}</Text>
+                <Text style={styles.selectedX}>×</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Q04 — Telegram */}
       <View style={[styles.tgCard, tgOn && styles.tgCardOn]}>
-        <Text style={[styles.cardQ, tgOn && styles.cardQLime]}>Q · 03</Text>
+        <Text style={[styles.cardQ, tgOn && styles.cardQLime]}>Q · 04</Text>
         <View style={styles.tgRow}>
-          <View
-            style={[
-              styles.tgIcon,
-              { backgroundColor: tgOn ? colors.lime : colors.lavender },
-            ]}
-          >
+          <View style={[styles.tgIcon, { backgroundColor: tgOn ? colors.lime : colors.lavender }]}>
             <Text style={styles.tgIconText}>↗</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>
-              Connect Telegram
+            <Text style={[styles.tgTitle, tgOn && { color: colors.cream }]}>Conectar Telegram</Text>
+            <Text style={[styles.tgBody, tgOn && { color: "rgba(251,246,235,0.75)" }]}>
+              Conecta tu grupo a Telegram para recibir las recomendaciones directamente ahí.
             </Text>
-            <Text
-              style={[
-                styles.tgBody,
-                tgOn && { color: "rgba(251,246,235,0.75)" },
-              ]}
-            >
-              We'll create a private channel. Recs, votes & members sync both
-              ways — automatically.
-            </Text>
-            {tgOn && (
-              <View style={styles.tgPills}>
-                <View style={styles.tgPillLime}>
-                  <Text style={styles.tgPillLimeText}>● Auto-create</Text>
-                </View>
-                <View style={styles.tgPillGlass}>
-                  <Text style={styles.tgPillGlassText}>Bidirectional</Text>
-                </View>
-              </View>
-            )}
           </View>
-          <Pressable
-            onPress={() => setTgOn((v) => !v)}
-            style={[styles.toggle, tgOn && styles.toggleOn]}
-          >
+          <Pressable onPress={() => setTgOn((v) => !v)} style={[styles.toggle, tgOn && styles.toggleOn]}>
             <View style={[styles.toggleThumb, tgOn && styles.toggleThumbOn]} />
           </Pressable>
         </View>
-        {tgOn && (
-          <View style={styles.syncBox}>
-            <Text style={styles.syncLabel}>WHAT SYNCS</Text>
-            <View style={styles.syncTags}>
-              {SYNC_TAGS.map((t) => (
-                <View key={t} style={styles.syncTag}>
-                  <Text style={styles.syncTagText}>{t}</Text>
-                </View>
-              ))}
-            </View>
-          </View>
-        )}
       </View>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingBottom: 16 },
-  progress: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 22,
-    paddingTop: 18,
-    paddingBottom: 20,
-  },
+  progress: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 22, paddingTop: 18, paddingBottom: 20 },
   dots: { flexDirection: "row", gap: 4 },
-  dot: { width: 32, height: 4, borderRadius: 2 },
+  dot: { width: 26, height: 4, borderRadius: 2 },
   dotOn: { backgroundColor: colors.ink },
-  stepLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.4,
-    color: "rgba(22,16,46,0.5)",
-  },
+  stepLabel: { fontSize: 11, fontWeight: "700", letterSpacing: 1.4, color: "rgba(22,16,46,0.5)" },
   header: { paddingHorizontal: 22, paddingBottom: 18 },
-  kicker: {
-    fontSize: 10,
-    fontWeight: "800",
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    color: colors.coral,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 40,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -1,
-    lineHeight: 42,
-  },
+  kicker: { fontSize: 10, fontWeight: "800", letterSpacing: 2, textTransform: "uppercase", color: colors.coral, marginBottom: 8 },
+  title: { fontSize: 40, fontWeight: "900", color: colors.ink, letterSpacing: -1, lineHeight: 42 },
   titleItalic: { fontStyle: "italic", fontWeight: "700", color: colors.coral },
-  subtitle: {
-    marginTop: 10,
-    fontSize: 13,
-    color: "rgba(22,16,46,0.65)",
-    fontWeight: "600",
-    lineHeight: 19,
-  },
-  errorBox: {
-    marginHorizontal: 22,
-    marginBottom: 10,
-    backgroundColor: "rgba(255,126,107,0.12)",
-    borderRadius: radii.md,
-    padding: 12,
-  },
+  subtitle: { marginTop: 10, fontSize: 13, color: "rgba(22,16,46,0.65)", fontWeight: "600", lineHeight: 19 },
+  errorBox: { marginHorizontal: 22, marginBottom: 10, backgroundColor: "rgba(255,126,107,0.12)", borderRadius: radii.md, padding: 12 },
   errorText: { fontSize: 12, fontWeight: "700", color: "#C0392B" },
-  card: {
-    marginHorizontal: 22,
-    marginBottom: 12,
-    backgroundColor: colors.white,
-    borderRadius: radii.xl,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "rgba(22,16,46,0.06)",
-  },
-  cardQ: {
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1.6,
-    textTransform: "uppercase",
-    color: "rgba(22,16,46,0.5)",
-    marginBottom: 4,
-  },
-  cardQLime: { color: "rgba(212,255,61,0.85)" },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -0.3,
-    marginBottom: 14,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 14,
-  },
-  circleIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  circleInitials: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -0.5,
-  },
-  nameInput: {
-    flex: 1,
-    fontSize: 22,
-    fontWeight: "900",
-    color: colors.ink,
-    borderBottomWidth: 2,
-    borderBottomColor: colors.purple,
-    paddingBottom: 4,
-    letterSpacing: -0.5,
-  },
-  vibes: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  vibeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    borderRadius: radii.pill,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: colors.mist,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  vibeIcon: { fontSize: 14 },
-  vibeLabel: { fontSize: 13, fontWeight: "800", color: colors.ink },
-  inviteRow: { flexDirection: "row", gap: 6, marginBottom: 14 },
-  inviteSlot: { flex: 1, alignItems: "center", gap: 6 },
-  inviteName: {
-    fontSize: 8,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    color: "rgba(22,16,46,0.55)",
-    textTransform: "uppercase",
-  },
-  inviteEmpty: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 1.5,
-    borderStyle: "dashed",
-    borderColor: "rgba(22,16,46,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  inviteEmptyText: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "rgba(22,16,46,0.4)",
-  },
-  methodRow: { flexDirection: "row", gap: 6 },
-  methodBtn: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  methodBtnText: { fontWeight: "900", fontSize: 12 },
-  tgCard: {
-    marginHorizontal: 22,
-    marginBottom: 12,
-    borderRadius: radii.xl,
-    padding: 16,
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: "rgba(22,16,46,0.06)",
-  },
+  card: { marginHorizontal: 22, marginBottom: 12, backgroundColor: colors.white, borderRadius: radii.xl, padding: 16, borderWidth: 1, borderColor: "rgba(22,16,46,0.06)" },
+  cardTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  cardQ: { fontSize: 9, fontWeight: "800", letterSpacing: 1.6, textTransform: "uppercase", color: "rgba(22,16,46,0.5)", marginBottom: 4 },
+  cardTitle: { fontSize: 18, fontWeight: "900", color: colors.ink, letterSpacing: -0.3, marginBottom: 14 },
+  nameInput: { fontSize: 22, fontWeight: "900", color: colors.ink, borderBottomWidth: 2, borderBottomColor: colors.purple, paddingBottom: 4, letterSpacing: -0.5 },
+  vibeCount: { fontSize: 11, fontWeight: "800", color: "rgba(22,16,46,0.35)", letterSpacing: 0.5 },
+  vibeCountActive: { color: colors.purple },
+  vibeError: { fontSize: 11, fontWeight: "700", color: colors.coral, marginBottom: 8 },
+  vibeGroup: { marginBottom: 14 },
+  vibeCatLabel: { fontSize: 9, fontWeight: "800", letterSpacing: 1.4, textTransform: "uppercase", color: "rgba(22,16,46,0.45)", marginBottom: 8 },
+  vibeChips: { flexDirection: "row", flexWrap: "wrap", gap: 7 },
+  vibeChip: { borderRadius: radii.pill, paddingVertical: 7, paddingHorizontal: 12, backgroundColor: "rgba(22,16,46,0.04)", borderWidth: 1, borderColor: "rgba(22,16,46,0.08)" },
+  vibeChipOn: { backgroundColor: colors.ink, borderColor: colors.ink },
+  vibeChipText: { fontSize: 12, fontWeight: "700", color: colors.ink },
+  vibeChipTextOn: { color: colors.cream },
+  vibeHint: { fontSize: 11, color: "rgba(22,16,46,0.42)", fontWeight: "600", lineHeight: 16, marginTop: 4 },
+  searchRow: { flexDirection: "row", alignItems: "center", borderBottomWidth: 1.5, borderBottomColor: "rgba(22,16,46,0.12)", marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: "700", color: colors.ink, paddingVertical: 8 },
+  spinner: { fontSize: 16, color: "rgba(22,16,46,0.35)", letterSpacing: 2 },
+  results: { borderRadius: radii.md, overflow: "hidden", marginBottom: 8 },
+  resultRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "rgba(22,16,46,0.05)" },
+  resultAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.lavender, alignItems: "center", justifyContent: "center" },
+  resultAvatarText: { fontSize: 13, fontWeight: "900", color: colors.ink },
+  resultName: { fontSize: 14, fontWeight: "700", color: colors.ink },
+  resultEmail: { fontSize: 11, fontWeight: "600", color: "rgba(22,16,46,0.45)", marginTop: 1 },
+  resultAdd: { fontSize: 12, fontWeight: "800", color: colors.purple },
+  selectedRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 4 },
+  selectedChip: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: radii.pill, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.purple },
+  selectedName: { fontSize: 12, fontWeight: "800", color: colors.cream },
+  selectedX: { fontSize: 14, fontWeight: "900", color: "rgba(251,246,235,0.65)" },
+  tgCard: { marginHorizontal: 22, marginBottom: 12, borderRadius: radii.xl, padding: 16, backgroundColor: colors.white, borderWidth: 1, borderColor: "rgba(22,16,46,0.06)" },
   tgCardOn: { backgroundColor: colors.ink, borderColor: colors.ink },
-  tgRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 14,
-    marginTop: 4,
-  },
-  tgIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+  cardQLime: { color: "rgba(212,255,61,0.85)" },
+  tgRow: { flexDirection: "row", alignItems: "flex-start", gap: 14, marginTop: 4 },
+  tgIcon: { width: 44, height: 44, borderRadius: 13, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   tgIconText: { fontSize: 18, fontWeight: "900", color: colors.ink },
-  tgTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: colors.ink,
-    letterSpacing: -0.3,
-  },
-  tgBody: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: "rgba(22,16,46,0.65)",
-    lineHeight: 17,
-    marginTop: 4,
-  },
-  tgPills: { flexDirection: "row", gap: 6, marginTop: 10 },
-  tgPillLime: {
-    borderRadius: radii.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(212,255,61,0.12)",
-  },
-  tgPillLimeText: { fontSize: 10, fontWeight: "800", color: colors.lime },
-  tgPillGlass: {
-    borderRadius: radii.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
-  },
-  tgPillGlassText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: "rgba(251,246,235,0.65)",
-  },
-  toggle: {
-    width: 50,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(22,16,46,0.15)",
-    justifyContent: "center",
-    paddingHorizontal: 2,
-    flexShrink: 0,
-  },
+  tgTitle: { fontSize: 16, fontWeight: "900", color: colors.ink, letterSpacing: -0.3 },
+  tgBody: { fontSize: 12, fontWeight: "600", color: "rgba(22,16,46,0.65)", lineHeight: 17, marginTop: 4 },
+  toggle: { width: 50, height: 28, borderRadius: 14, backgroundColor: "rgba(22,16,46,0.15)", justifyContent: "center", paddingHorizontal: 2, flexShrink: 0 },
   toggleOn: { backgroundColor: colors.lime },
-  toggleThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.ink,
-    alignSelf: "flex-start",
-  },
+  toggleThumb: { width: 24, height: 24, borderRadius: 12, backgroundColor: colors.ink, alignSelf: "flex-start" },
   toggleThumbOn: { alignSelf: "flex-end" },
-  syncBox: {
-    marginTop: 14,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: "rgba(212,255,61,0.08)",
-    borderWidth: 0.5,
-    borderColor: "rgba(212,255,61,0.25)",
-  },
-  syncLabel: {
-    fontSize: 9,
-    fontWeight: "800",
-    letterSpacing: 1.6,
-    color: "rgba(251,246,235,0.5)",
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  syncTags: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-  syncTag: {
-    borderRadius: radii.pill,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-  },
-  syncTagText: {
-    fontSize: 10,
-    fontWeight: "800",
-    color: colors.lime,
-    letterSpacing: 0.4,
-  },
-  footer: { position: "absolute", left: 22, right: 22, bottom: 26 },
-  skipBtn: {
-    alignItems: "center",
-    paddingVertical: 12,
-    opacity: 1,
-  },
-  skipBtnText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "rgba(22,16,46,0.5)",
-    letterSpacing: 0.2,
-  },
+  skipBtn: { alignItems: "center", paddingVertical: 12 },
+  skipText: { fontSize: 13, fontWeight: "700", color: "rgba(22,16,46,0.5)", letterSpacing: 0.2 },
+  linkWrap: { paddingHorizontal: 22, paddingTop: 60 },
+  linkKicker: { fontSize: 11, fontWeight: "800", letterSpacing: 2, textTransform: "uppercase", color: colors.lime, marginBottom: 12 },
+  linkTitle: { fontSize: 40, fontWeight: "900", color: colors.cream, letterSpacing: -1, lineHeight: 42 },
+  linkAccent: { fontStyle: "italic", fontWeight: "400", color: colors.lime },
+  linkSub: { marginTop: 10, fontSize: 14, color: "rgba(251,246,235,0.7)", fontWeight: "600", lineHeight: 20, marginBottom: 28 },
+  linkInput: { backgroundColor: "rgba(255,255,255,0.07)", borderRadius: radii.md, padding: 14, fontSize: 14, fontWeight: "700", color: colors.lime, letterSpacing: 0.3, borderWidth: 0.5, borderColor: "rgba(212,255,61,0.3)" },
+  linkHint: { marginTop: 8, fontSize: 11, color: "rgba(251,246,235,0.38)", fontWeight: "600" },
+  linkTgNote: { marginTop: 20, fontSize: 12, color: "rgba(251,246,235,0.48)", fontWeight: "600", lineHeight: 18 },
+  linkError: { marginTop: 12, fontSize: 12, fontWeight: "700", color: colors.coral },
 });

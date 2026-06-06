@@ -1,3 +1,4 @@
+import { ActivityIndicator, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { routes } from './routes';
@@ -66,8 +67,15 @@ function AppStack() {
 }
 
 export function RootNavigator() {
-  const { user } = useAuth();
-  // Si hay usuario autenticado Y completó onboarding → app
-  // En cualquier otro caso → auth flow
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FBF6EB' }}>
+        <ActivityIndicator size="large" color="#7C5BFF" />
+      </View>
+    );
+  }
+
   return user?.completedOnboarding ? <AppStack /> : <AuthStack />;
 }
