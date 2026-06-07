@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
+import { getGroupRecommendations } from '../utils/recommendations';
 
 const BADGE_COLORS = [
   colors.purple, colors.coral, colors.lavender,
@@ -51,20 +52,22 @@ function MemberCard({ member }) {
 }
 
 function RecCard({ rec, index }) {
-  const book = rec.books ?? {};
-  const title = book.nombre_libro ?? '—';
-  const author = book.autor ?? '';
-  const genreRaw = book.genero ?? '';
+  const book = rec.books ?? rec.book ?? {};
+  const title = book.nombre_libro ?? book.title ?? '—';
+  const author = book.autor ?? book.author ?? '';
+  const genreRaw = book.genero ?? book.genre ?? '';
   const genres = (typeof genreRaw === 'string' ? genreRaw.split(',') : [String(genreRaw)])
     .map(g => g.trim()).filter(Boolean).slice(0, 2);
-  const score = Math.round((rec.final_score ?? 0) * 100);
-  const why = rec.explanation?.why_recommended ?? rec.explanation ?? null;
+  const score = rec.final_score
+    ? Math.round(rec.final_score * 100)
+    : Math.round((rec.score ?? 0) * 100);
+  const why = rec.explanation?.why_recommended ?? rec.reasons?.[0] ?? null;
   const isTop = index === 0;
 
   return (
     <View style={styles.recCard}>
       <View style={[styles.rankPill, isTop && styles.rankPillTop]}>
-        <Text style={[styles.rankText, isTop && styles.rankTextTop]}>#{rec.rank}</Text>
+        <Text style={[styles.rankText, isTop && styles.rankTextTop]}>#{rec.rank ?? index + 1}</Text>
       </View>
 
       <View style={styles.recInfo}>
@@ -99,6 +102,9 @@ export function GroupDetailScreen({ navigation, route }) {
   const [members, setMembers] = useState([]);
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [metodo, setMetodo] = useState('media_sigma');
+
+  const localRecs = getGroupRecommendations(groupId ?? 'g1', 3, metodo);
 
   useEffect(() => {
     if (!groupId) { setLoading(false); return; }
@@ -138,6 +144,8 @@ export function GroupDetailScreen({ navigation, route }) {
   const initials = groupInitials(groupName);
   const headerBg = badgeColor(groupId ?? '');
   const hasTelegram = Boolean(group?.telegram_chat_id);
+
+  const recsToShow = recs.length > 0 ? recs : localRecs;
 
   function handleTelegram() {
     Alert.alert(
@@ -212,7 +220,27 @@ export function GroupDetailScreen({ navigation, route }) {
             </View>
           </View>
 
-          {loading ? null : recs.length === 0 ? (
+          {/* Selector de método de agregación */}
+          <View style={metodoStyles.row}>
+            {[
+              { id: 'media_sigma', label: 'Consenso' },
+              { id: 'promedio',    label: 'Promedio' },
+              { id: 'min_miseria', label: 'Justo' },
+              { id: 'max_placer',  label: 'Mayoría' },
+            ].map(m => (
+              <Pressable
+                key={m.id}
+                onPress={() => setMetodo(m.id)}
+                style={[metodoStyles.chip, metodo === m.id && metodoStyles.chipOn]}
+              >
+                <Text style={[metodoStyles.chipText, metodo === m.id && metodoStyles.chipTextOn]}>
+                  {m.label}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {loading ? null : recsToShow.length === 0 ? (
             <View style={styles.emptyRecs}>
               <Text style={styles.emptyRecsText}>
                 No recommendations yet — the engine runs once your circle has members and preferences.
@@ -220,8 +248,8 @@ export function GroupDetailScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={styles.recList}>
-              {recs.map((rec, i) => (
-                <RecCard key={rec.rank} rec={rec} index={i} />
+              {recsToShow.map((rec, i) => (
+                <RecCard key={rec.rank ?? i} rec={rec} index={i} />
               ))}
             </View>
           )}
@@ -254,7 +282,6 @@ export function GroupDetailScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   content: { paddingBottom: 0 },
 
-  // Header
   header: {
     paddingTop: 54, paddingHorizontal: 22, paddingBottom: 24,
     alignItems: 'center', gap: 8,
@@ -287,18 +314,14 @@ const styles = StyleSheet.create({
   vibePillText: { fontSize: 11, fontWeight: '700', color: 'rgba(251,246,235,0.85)' },
   memberCount: { fontSize: 12, fontWeight: '700', color: 'rgba(251,246,235,0.5)', marginTop: 2 },
 
-  // Sections
   section: { paddingHorizontal: 22, paddingTop: 24 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   sectionTitle: { fontSize: 20, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
   autoBadge: { borderRadius: radii.pill, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: colors.lime },
   autoBadgeText: { fontSize: 10, fontWeight: '900', color: colors.ink, letterSpacing: 0.8 },
 
-  // Members
   membersRow: { gap: 10, paddingTop: 12, paddingBottom: 4 },
-  memberCard: {
-    alignItems: 'center', gap: 6, width: 72,
-  },
+  memberCard: { alignItems: 'center', gap: 6, width: 72 },
   memberAvatar: {
     width: 48, height: 48, borderRadius: 16,
     alignItems: 'center', justifyContent: 'center',
@@ -314,7 +337,6 @@ const styles = StyleSheet.create({
   },
   adminText: { fontSize: 9, fontWeight: '900', color: colors.ink, letterSpacing: 0.4 },
 
-  // Rec cards
   recList: { gap: 12 },
   recCard: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 14,
@@ -352,7 +374,6 @@ const styles = StyleSheet.create({
   scorePct: { fontSize: 9, fontWeight: '800', color: 'rgba(22,16,46,0.4)', marginTop: -2 },
   scorePctTop: { color: 'rgba(22,16,46,0.6)' },
 
-  // Empty recs
   emptyRecs: {
     padding: 20, borderRadius: radii.xl,
     backgroundColor: 'rgba(22,16,46,0.04)',
@@ -360,7 +381,6 @@ const styles = StyleSheet.create({
   },
   emptyRecsText: { fontSize: 13, fontWeight: '600', color: 'rgba(22,16,46,0.4)', lineHeight: 19 },
 
-  // Telegram
   tgCard: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: colors.ink, borderRadius: radii.xl, padding: 16,
@@ -373,4 +393,33 @@ const styles = StyleSheet.create({
   tgTitle: { fontSize: 16, fontWeight: '900', color: colors.cream, marginBottom: 3 },
   tgSub: { fontSize: 12, fontWeight: '600', color: 'rgba(251,246,235,0.6)', lineHeight: 17 },
   tgArrow: { fontSize: 26, fontWeight: '900', color: 'rgba(251,246,235,0.3)', flexShrink: 0 },
+});
+
+const metodoStyles = StyleSheet.create({
+  row: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 14,
+    flexWrap: 'wrap',
+  },
+  chip: {
+    paddingVertical: 7,
+    paddingHorizontal: 13,
+    borderRadius: 999,
+    backgroundColor: 'rgba(22,16,46,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.08)',
+  },
+  chipOn: {
+    backgroundColor: '#16102E',
+    borderColor: '#16102E',
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: 'rgba(22,16,46,0.6)',
+  },
+  chipTextOn: {
+    color: '#D4FF3D',
+  },
 });
