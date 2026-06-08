@@ -96,3 +96,11 @@ export async function insertUserWeights(weights) {
   const { error } = await supabase.from("user_weights").insert(rows);
   if (error) throw error;
 }
+
+export async function triggerGroupRecommendations(groupId, metodo = 'media_sigma') {
+  const { data, error } = await supabase.functions.invoke('group-recommendations', {
+    body: { group_id: groupId, metodo },
+  })
+  if (error) throw error
+  return data
+}

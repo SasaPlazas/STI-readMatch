@@ -1,3 +1,4 @@
+import { triggerGroupRecommendations } from '../utils/userStorage';
 import { useEffect, useState } from 'react';
 import { Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
