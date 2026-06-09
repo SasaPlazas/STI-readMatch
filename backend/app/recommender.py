@@ -85,6 +85,52 @@ def aggregate_scores(scores: list[float], metodo: str) -> float:
     return score_mean * (1 - sigma)
 
 
+def build_per_member_scores(members: list[dict[str, Any]], scores: list[float]) -> list[dict[str, Any]]:
+    return [
+        {
+            "user_id": member.get("user_id"),
+            "role": member.get("role"),
+            "score": round(score, 6),
+        }
+        for member, score in zip(members, scores)
+    ]
+
+
+def compute_member_coverage(scores: list[float], threshold: float = 0.4) -> float:
+    if not scores:
+        return 0.0
+    covered = sum(1 for score in scores if score >= threshold)
+    return covered / len(scores)
+
+
+def build_stats(members: list[dict[str, Any]], scores: list[float], final_score: float) -> dict[str, Any]:
+    if not scores:
+        return {
+            "content_score": 0.0,
+            "collaborative_score": 0.0,
+            "popularity_score": 0.5,
+            "fairness_score": 0.0,
+            "member_coverage": 0.0,
+            "per_member_scores": [],
+        }
+
+    score_mean = mean(scores)
+    polarization = max(scores) - min(scores)
+    fairness_score = max(0.0, 1.0 - polarization)
+    member_coverage = compute_member_coverage(scores)
+
+    return {
+        "content_score": score_mean,
+        # This is the group-level score after aggregating member preferences.
+        "collaborative_score": final_score,
+        # Neutral baseline until popularity signals (votes/clicks) exist.
+        "popularity_score": 0.5,
+        "fairness_score": fairness_score,
+        "member_coverage": member_coverage,
+        "per_member_scores": build_per_member_scores(members, scores),
+    }
+
+
 def build_explanation(scores: list[float], metodo: str) -> dict[str, Any]:
     if not scores:
         return {
@@ -129,6 +175,7 @@ def score_group_books(
             member_scores.append(cosine_similarity(user_vec, book_vec))
 
         final_score = aggregate_scores(member_scores, metodo)
+        stats = build_stats(members, member_scores, final_score)
         explanation = build_explanation(member_scores, metodo)
 
         scored.append(
@@ -137,6 +184,7 @@ def score_group_books(
                 "book_id": book["id"],
                 "rank": 0,
                 "final_score": final_score,
+                **stats,
                 "explanation": explanation,
             }
         )

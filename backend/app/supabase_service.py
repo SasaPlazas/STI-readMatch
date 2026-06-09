@@ -93,7 +93,7 @@ class SupabaseRepository:
             response = (
                 self.client.table("group_recommendations")
                 .select(
-                    "group_id, book_id, rank, final_score, explanation, generated_at, books(nombre_libro, autor, genero)"
+                    "group_id, book_id, rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, generated_at, books(nombre_libro, autor, genero)"
                 )
                 .eq("group_id", group_id)
                 .order("rank")
