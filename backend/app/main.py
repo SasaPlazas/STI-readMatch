@@ -47,16 +47,14 @@ def get_repository() -> SupabaseRepository:
     return SupabaseRepository()
 
 
-@app.api_route("/", methods=["GET", "HEAD"])
-async def root(request: Request) -> dict[str, Any] | Response:
-    if request.method == "HEAD":
-        return Response(status_code=200)
-    return {
-        "ok": True,
-        "service": settings.app_name,
-        "health": "/health",
-        "docs": "/docs",
-    }
+@app.head("/")
+async def head_root() -> Response:
+    return Response(status_code=200)
+
+
+@app.get("/")
+async def root() -> dict[str, Any]:
+    return {"ok": True, "service": settings.app_name, "health": "/health", "docs": "/docs"}
 
 
 @app.get("/health", response_model=HealthResponse)
