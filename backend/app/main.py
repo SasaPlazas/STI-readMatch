@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -43,18 +43,20 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
 
 
-def get_repository() -> SupabaseRepository:
+
     return SupabaseRepository()
+def get_repository() -> SupabaseRepository:
 
-
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
+async def root(request: Request) -> dict[str, Any] | Response:
+    if request.method == "HEAD":
+        return Response(status_code=200)
 async def root() -> dict[str, Any]:
     return {
         "ok": True,
         "service": settings.app_name,
         "health": "/health",
         "docs": "/docs",
-    }
 
 
 @app.get("/health", response_model=HealthResponse)
