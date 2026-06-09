@@ -1,16 +1,16 @@
-import Constants from 'expo-constants';
+import Constants from "expo-constants";
 
 const extra = Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {};
 
 export const apiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ||
   extra.EXPO_PUBLIC_API_URL ||
-  'http://localhost:8000';
+  "https://sti-readmatch.onrender.com";
 
 export async function apiFetch(path, options = {}) {
   const url = `${apiBaseUrl}${path}`;
   const headers = {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
     ...(options.headers ?? {}),
   };
 
@@ -31,7 +31,9 @@ export async function apiFetch(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(payload?.detail || payload?.error || `API error ${response.status}`);
+    throw new Error(
+      payload?.detail || payload?.error || `API error ${response.status}`,
+    );
   }
 
   return payload;
