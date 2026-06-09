@@ -39,8 +39,10 @@ function badgeColor(id = "") {
   return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
 }
 
-function toPct(value) {
-  return Math.round((Number(value) || 0) * 100);
+function toPct(value, decimals = 0) {
+  const n = Number(value) || 0;
+  const factor = 10 ** decimals;
+  return Math.round(n * 100 * factor) / factor;
 }
 
 function MemberCard({ member }) {
@@ -85,15 +87,15 @@ function RecCard({ rec, index }) {
     .map((g) => g.trim())
     .filter(Boolean)
     .slice(0, 2);
-  const score = rec.final_score
-    ? Math.round(rec.final_score * 100)
-    : Math.round((rec.score ?? 0) * 100);
+  const groupScore =
+    rec.final_score ?? rec.collaborative_score ?? rec.score ?? 0;
+  const score = toPct(groupScore, 1);
   const why = rec.explanation?.why_recommended ?? rec.reasons?.[0] ?? null;
   const isTop = index === 0;
   const metricItems = [
-    { label: "Content", value: toPct(rec.content_score ?? rec.final_score) },
-    { label: "Fairness", value: toPct(rec.fairness_score) },
-    { label: "Coverage", value: toPct(rec.member_coverage) },
+    { label: "Group", value: toPct(groupScore, 1) },
+    { label: "Fairness", value: toPct(rec.fairness_score, 1) },
+    { label: "Coverage", value: toPct(rec.member_coverage, 1) },
   ];
 
   return (
