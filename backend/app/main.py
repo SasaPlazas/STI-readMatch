@@ -36,8 +36,15 @@ async def runtime_error_handler(request: Request, exc: RuntimeError) -> JSONResp
     return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    if settings.environment != "production":
+        return JSONResponse(status_code=500, content={"detail": str(exc)})
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
 
 def get_repository() -> SupabaseRepository:
+    return SupabaseRepository()
 
 
 @app.get("/")
