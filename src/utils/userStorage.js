@@ -42,50 +42,68 @@ export async function upsertBooks(books) {
     genero: b.genre ?? null,
     descripcion: b.description ?? null,
   }));
-  const { error } = await supabase.from('books').upsert(rows, { onConflict: 'ol_key' });
+  const { error } = await supabase
+    .from("books")
+    .upsert(rows, { onConflict: "ol_key" });
   if (error) throw error;
 }
 
-export async function createGroupWithMembers({ groupName, vibes, tgOn, friendUserIds }) {
-  const { data: groupId, error } = await supabase.rpc('create_group_with_admin', {
-    p_group_name: groupName || 'My Circle',
-    p_vibe: vibes ?? [],
-    p_telegram_chat_id: tgOn ? 'pending' : null,
-  });
+export async function createGroupWithMembers({
+  groupName,
+  vibes,
+  tgOn,
+  friendUserIds,
+}) {
+  const { data: groupId, error } = await supabase.rpc(
+    "create_group_with_admin",
+    {
+      p_group_name: groupName || "My Circle",
+      p_vibe: vibes ?? [],
+      p_telegram_chat_id: tgOn ? "pending" : null,
+    },
+  );
   if (error) throw error;
   if (friendUserIds?.length) {
-    const { error: membErr } = await supabase.from('group_members').insert(
+    const { error: membErr } = await supabase.from("group_members").insert(
       friendUserIds.map((uid) => ({
         group_id: groupId,
         user_id: uid,
-        role: 'member',
+        role: "member",
         influence_weight: 1.0,
-      }))
+      })),
     );
     if (membErr) throw membErr;
   }
+  try {
+    await triggerGroupRecommendations(groupId);
+  } catch {}
   return groupId;
 }
 
 export async function joinGroupByLink(rawLink) {
-  const match = rawLink.trim().match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-  if (!match) throw new Error('Link inválido — pega el link completo');
+  const match = rawLink
+    .trim()
+    .match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
+  if (!match) throw new Error("Link inválido — pega el link completo");
   const groupId = match[1];
   const { data, error } = await supabase
-    .from('recommendation_groups')
-    .select('id, group_name')
-    .eq('id', groupId)
-    .eq('is_active', true)
+    .from("recommendation_groups")
+    .select("id, group_name")
+    .eq("id", groupId)
+    .eq("is_active", true)
     .single();
-  if (error || !data) throw new Error('Grupo no encontrado o inactivo');
+  if (error || !data) throw new Error("Grupo no encontrado o inactivo");
   const userId = await getAuthedUserId();
-  const { error: joinErr } = await supabase.from('group_members').insert({
+  const { error: joinErr } = await supabase.from("group_members").insert({
     group_id: groupId,
     user_id: userId,
-    role: 'member',
+    role: "member",
     influence_weight: 1.0,
   });
   if (joinErr) throw joinErr;
+  try {
+    await triggerGroupRecommendations(groupId);
+  } catch {}
   return { groupId, groupName: data.group_name };
 }
 
@@ -98,12 +116,15 @@ export async function insertUserWeights(weights) {
   if (error) throw error;
 }
 
-export async function triggerGroupRecommendations(groupId, metodo = 'media_sigma') {
-  return apiFetch('/api/recommendations/recompute', {
-    method: 'POST',
+export async function triggerGroupRecommendations(
+  groupId,
+  metodo = "media_sigma",
+) {
+  return apiFetch("/api/recommendations/recompute", {
+    method: "POST",
     body: JSON.stringify({
       group_id: groupId,
       metodo,
     }),
-  })
+  });
 }

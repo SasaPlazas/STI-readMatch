@@ -7,20 +7,31 @@ import { routes } from '../navigation/routes';
 
 export function NotificationsBell({ navigation, userId, light = false }) {
   const [unread, setUnread] = useState(0);
+  const [disabled, setDisabled] = useState(false);
 
   useFocusEffect(useCallback(() => {
-    if (!userId) return;
+    if (!userId || disabled) return;
     supabase
       .from('notifications')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('is_read', false)
-      .then(({ count }) => setUnread(count ?? 0));
-  }, [userId]));
+      .then(({ count, error }) => {
+        if (error) {
+          setDisabled(true);
+          setUnread(0);
+          return;
+        }
+        setUnread(count ?? 0);
+      });
+  }, [userId, disabled]));
 
   return (
     <Pressable
-      onPress={() => navigation.navigate(routes.Notifications)}
+      onPress={() => {
+        if (disabled) return;
+        navigation.navigate(routes.Notifications);
+      }}
       style={[styles.btn, light && styles.btnLight]}
       hitSlop={8}
     >
