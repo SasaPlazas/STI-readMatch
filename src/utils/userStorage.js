@@ -126,5 +126,6 @@ export async function triggerGroupRecommendations(
       group_id: groupId,
       metodo,
     }),
+    timeoutMs: 45000,
   });
 }

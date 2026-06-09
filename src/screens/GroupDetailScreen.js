@@ -89,13 +89,13 @@ function RecCard({ rec, index }) {
     .slice(0, 2);
   const groupScore =
     rec.final_score ?? rec.collaborative_score ?? rec.score ?? 0;
-  const score = toPct(groupScore, 1);
+  const score = toPct(groupScore, 0);
   const why = rec.explanation?.why_recommended ?? rec.reasons?.[0] ?? null;
   const isTop = index === 0;
   const metricItems = [
-    { label: "Group", value: toPct(groupScore, 1) },
-    { label: "Fairness", value: toPct(rec.fairness_score, 1) },
-    { label: "Coverage", value: toPct(rec.member_coverage, 1) },
+    { label: "Group", value: toPct(groupScore, 0) },
+    { label: "Fairness", value: toPct(rec.fairness_score, 0) },
+    { label: "Coverage", value: toPct(rec.member_coverage, 0) },
   ];
 
   return (
@@ -126,7 +126,7 @@ function RecCard({ rec, index }) {
         )}
         {why ? (
           <Text style={styles.recReason} numberOfLines={3}>
-            ✦ {why}
+            Motivo: {why}
           </Text>
         ) : null}
         <View style={styles.statsRow}>
@@ -163,6 +163,7 @@ export function GroupDetailScreen({ navigation, route }) {
       setLoading(false);
       return;
     }
+    setLoading(true);
     async function load() {
       try {
         const [{ data: g }, { data: memberRows }, { data: recRows }] =
