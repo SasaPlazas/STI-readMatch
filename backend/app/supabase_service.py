@@ -7,6 +7,12 @@ from supabase import Client, create_client
 from .config import settings
 
 
+try:
+    from postgrest.exceptions import APIError as PostgrestAPIError
+except Exception:
+    PostgrestAPIError = None
+
+
 def get_supabase_client() -> Client:
     if not settings.supabase_url or not settings.supabase_service_role_key:
         raise RuntimeError("SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY son obligatorios")
@@ -17,58 +23,90 @@ class SupabaseRepository:
     def __init__(self, client: Client | None = None) -> None:
         self.client = client or get_supabase_client()
 
+    def _raise_supabase_error(self, action: str, exc: Exception) -> None:
+        if PostgrestAPIError and isinstance(exc, PostgrestAPIError):
+            message = getattr(exc, "message", None) or str(exc)
+            raise RuntimeError(f"Supabase error ({action}): {message}") from exc
+        raise RuntimeError(f"Supabase error ({action}): {type(exc).__name__}") from exc
+
     def fetch_group_members(self, group_id: str) -> list[dict[str, Any]]:
-        response = (
-            self.client.table("group_members")
-            .select("user_id, role, influence_weight, user_preferences(favorite_genres, depth_preference, openness_score)")
-            .eq("group_id", group_id)
-            .execute()
-        )
-        return response.data or []
+        try:
+            response = (
+                self.client.table("group_members")
+                .select(
+                    "user_id, role, influence_weight, user_preferences(favorite_genres, depth_preference, openness_score)"
+                )
+                .eq("group_id", group_id)
+                .execute()
+            )
+            return response.data or []
+        except Exception as exc:
+            self._raise_supabase_error("fetch_group_members", exc)
+            return []
 
     def fetch_books(self, limit: int = 50) -> list[dict[str, Any]]:
-        response = (
-            self.client.table("books")
-            .select("id, nombre_libro, autor, genero, complexity")
-            .limit(limit)
-            .execute()
-        )
-        return response.data or []
+        try:
+            response = (
+                self.client.table("books")
+                .select("id, nombre_libro, autor, genero, complexity")
+                .limit(limit)
+                .execute()
+            )
+            return response.data or []
+        except Exception as exc:
+            self._raise_supabase_error("fetch_books", exc)
+            return []
 
     def replace_group_recommendations(self, group_id: str, rows: list[dict[str, Any]]) -> None:
-        (
-            self.client.table("group_recommendations")
-            .delete()
-            .eq("group_id", group_id)
-            .execute()
-        )
-        if rows:
-            self.client.table("group_recommendations").insert(rows).execute()
+        try:
+            (
+                self.client.table("group_recommendations")
+                .delete()
+                .eq("group_id", group_id)
+                .execute()
+            )
+            if rows:
+                self.client.table("group_recommendations").insert(rows).execute()
+        except Exception as exc:
+            self._raise_supabase_error("replace_group_recommendations", exc)
 
     def fetch_group_recommendations(self, group_id: str) -> list[dict[str, Any]]:
-        response = (
-            self.client.table("group_recommendations")
-            .select("group_id, book_id, rank, final_score, explanation, generated_at, books(nombre_libro, autor, genero)")
-            .eq("group_id", group_id)
-            .order("rank")
-            .execute()
-        )
-        return response.data or []
+        try:
+            response = (
+                self.client.table("group_recommendations")
+                .select(
+                    "group_id, book_id, rank, final_score, explanation, generated_at, books(nombre_libro, autor, genero)"
+                )
+                .eq("group_id", group_id)
+                .order("rank")
+                .execute()
+            )
+            return response.data or []
+        except Exception as exc:
+            self._raise_supabase_error("fetch_group_recommendations", exc)
+            return []
 
     def fetch_user_preferences(self, user_id: str) -> dict[str, Any]:
-        response = (
-            self.client.table("user_preferences")
-            .select("*")
-            .eq("user_id", user_id)
-            .maybe_single()
-            .execute()
-        )
-        return response.data or {}
+        try:
+            response = (
+                self.client.table("user_preferences")
+                .select("*")
+                .eq("user_id", user_id)
+                .maybe_single()
+                .execute()
+            )
+            return response.data or {}
+        except Exception as exc:
+            self._raise_supabase_error("fetch_user_preferences", exc)
+            return {}
 
     def update_group_telegram_chat(self, group_id: str, chat_id: str) -> None:
-        (
-            self.client.table("recommendation_groups")
-            .update({"telegram_chat_id": chat_id})
-            .eq("id", group_id)
-            .execute()
-        )
+        try:
+            (
+                self.client.table("recommendation_groups")
+                .update({"telegram_chat_id": chat_id})
+                .eq("id", group_id)
+                .execute()
+            )
+        except Exception as exc:
+            self._raise_supabase_error("update_group_telegram_chat", exc)
