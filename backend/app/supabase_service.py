@@ -66,7 +66,7 @@ class SupabaseRepository:
         try:
             response = (
                 self.client.table("books")
-                .select("id, nombre_libro, autor, genero, complexity")
+                .select("id, nombre_libro, autor, genero")
                 .limit(limit)
                 .execute()
             )
