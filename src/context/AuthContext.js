@@ -31,13 +31,11 @@ export function AuthProvider({ children }) {
     if (!session?.user) return null;
     const email = session.user.email || "";
     const name =
-      session.user.user_metadata?.name ||
-      email.split("@")[0] ||
-      "Reader";
+      session.user.user_metadata?.name || email.split("@")[0] || "Reader";
     const completedOnboarding = Boolean(
       session.user.user_metadata?.completedOnboarding ??
-        session.user.user_metadata?.completed_onboarding ??
-        false,
+      session.user.user_metadata?.completed_onboarding ??
+      false,
     );
     return { id: session.user.id, email, name, completedOnboarding };
   }, [session?.user]);
@@ -50,8 +48,8 @@ export function AuthProvider({ children }) {
     if (error) throw error;
     const completedOnboarding = Boolean(
       data?.user?.user_metadata?.completedOnboarding ??
-        data?.user?.user_metadata?.completed_onboarding ??
-        false,
+      data?.user?.user_metadata?.completed_onboarding ??
+      false,
     );
     return { completedOnboarding };
   }
@@ -63,15 +61,16 @@ export function AuthProvider({ children }) {
       options: { data: { name, completedOnboarding: false } },
     });
     if (error) {
-      if (error.message?.toLowerCase().includes('rate limit')) {
+      if (error.message?.toLowerCase().includes("rate limit")) {
         throw new Error(
-          'Se ha alcanzado el límite de envíos de correo en Supabase. Revisa la configuración de confirmación de email o espera unos minutos.',
+          "Se ha alcanzado el límite de envíos de correo en Supabase. Revisa la configuración de confirmación de email o espera unos minutos.",
         );
       }
       throw error;
     }
 
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    const { data: sessionData, error: sessionError } =
+      await supabase.auth.getSession();
     if (sessionError) throw sessionError;
     if (!sessionData?.session) {
       return { needsEmailConfirmation: true };
@@ -83,10 +82,14 @@ export function AuthProvider({ children }) {
     if (!session?.user?.id) {
       throw new Error("No active session found. Please sign in again.");
     }
-    const { error } = await supabase.auth.updateUser({
+    const { data: updated, error } = await supabase.auth.updateUser({
       data: { completedOnboarding: true },
     });
     if (error) throw error;
+    if (updated?.user && session) {
+      setSession({ ...session, user: updated.user });
+      return;
+    }
     const { data } = await supabase.auth.getSession();
     setSession(data.session ?? null);
   }

@@ -5,7 +5,9 @@ const extra = Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {};
 export const apiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ||
   extra.EXPO_PUBLIC_API_URL ||
-  "https://sti-readmatch.onrender.com";
+  (typeof window !== "undefined" && window.location?.hostname === "localhost"
+    ? "http://localhost:8000"
+    : "https://sti-readmatch.onrender.com");
 
 export async function apiFetch(path, options = {}) {
   const url = `${apiBaseUrl}${path}`;
@@ -14,10 +16,22 @@ export async function apiFetch(path, options = {}) {
     ...(options.headers ?? {}),
   };
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  const timeoutMs = Number.isFinite(options.timeoutMs)
+    ? Number(options.timeoutMs)
+    : 8000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   const text = await response.text();
   let payload = null;
