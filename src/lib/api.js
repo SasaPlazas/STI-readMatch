@@ -5,9 +5,7 @@ const extra = Constants.expoConfig?.extra ?? Constants.manifest?.extra ?? {};
 export const apiBaseUrl =
   process.env.EXPO_PUBLIC_API_URL ||
   extra.EXPO_PUBLIC_API_URL ||
-  (typeof window !== "undefined" && window.location?.hostname === "localhost"
-    ? "http://localhost:8000"
-    : "https://sti-readmatch.onrender.com");
+  "https://sti-readmatch.onrender.com";
 
 export async function apiFetch(path, options = {}) {
   const url = `${apiBaseUrl}${path}`;

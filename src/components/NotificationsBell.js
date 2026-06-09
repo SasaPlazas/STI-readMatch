@@ -10,12 +10,37 @@ export function NotificationsBell({ navigation, userId, light = false }) {
 
   useFocusEffect(useCallback(() => {
     if (!userId) return;
-    supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('is_read', false)
-      .then(({ count }) => setUnread(count ?? 0));
+    let cancelled = false;
+    (async () => {
+      const skipKey = 'rm_skip_notifications';
+      try {
+        if (typeof window !== 'undefined' && window.localStorage?.getItem(skipKey) === '1') {
+          return;
+        }
+      } catch (_) {}
+
+      try {
+        const { count, error } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('is_read', false);
+
+        if (error) {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem(skipKey, '1');
+            }
+          } catch (_) {}
+          return;
+        }
+
+        if (!cancelled) setUnread(count ?? 0);
+      } catch (_) {}
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [userId]));
 
   return (

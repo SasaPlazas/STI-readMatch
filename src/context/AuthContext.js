@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lastSignUpAt, setLastSignUpAt] = useState(0);
 
   useEffect(() => {
     let mounted = true;
@@ -55,6 +56,11 @@ export function AuthProvider({ children }) {
   }
 
   async function signUp({ email, password, name }) {
+    const now = Date.now();
+    if (now - lastSignUpAt < 8000) {
+      throw new Error("Espera unos segundos antes de intentar crear la cuenta otra vez.");
+    }
+    setLastSignUpAt(now);
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
