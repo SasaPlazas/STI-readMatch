@@ -52,17 +52,24 @@ export function NotificationsScreen({ navigation }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [disabled, setDisabled] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) return;
+    if (!user?.id || disabled) return;
 
     async function load() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(50);
+      if (error) {
+        setDisabled(true);
+        setNotifications([]);
+        setLoading(false);
+        return;
+      }
       setNotifications(data ?? []);
       setLoading(false);
 
@@ -75,7 +82,7 @@ export function NotificationsScreen({ navigation }) {
     }
 
     load();
-  }, [user?.id]);
+  }, [user?.id, disabled]);
 
   return (
     <Screen backgroundColor={colors.cream}>
