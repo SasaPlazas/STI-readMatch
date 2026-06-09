@@ -78,7 +78,7 @@ function SkeletonBox({ width, height, radius = 12, style }) {
     );
     loop.start();
     return () => loop.stop();
-  }, [user?.id]);
+  }, []);
   return (
     <Animated.View
       style={[
