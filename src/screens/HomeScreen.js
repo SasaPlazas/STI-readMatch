@@ -131,30 +131,34 @@ export function HomeScreen({ navigation }) {
     if (!user?.id) return;
     setLoadingGroups(true);
     try {
-      const { data, error } = await supabase
+      const { data: memberRows, error: memberErr } = await supabase
         .from('group_members')
-        .select(`
-          group_id,
-          role,
-          recommendation_groups (
-            id,
-            group_name,
-            vibe,
-            created_by,
-            is_active,
-            telegram_chat_id
-          )
-        `)
+        .select('group_id, role')
         .eq('user_id', user.id);
+      if (memberErr) throw memberErr;
 
-      if (error) throw error;
+      const groupIds = (memberRows ?? []).map(r => r.group_id).filter(Boolean);
+      if (groupIds.length === 0) {
+        setGroups([]);
+        return;
+      }
 
-      const valid = (data ?? [])
-        .filter(r => r.recommendation_groups?.is_active)
-        .map(r => ({ ...r.recommendation_groups, myRole: r.role }));
+      const { data: groupsRows, error: groupsErr } = await supabase
+        .from('recommendation_groups')
+        .select('id, group_name, vibe, created_by, is_active, telegram_chat_id')
+        .in('id', groupIds);
+      if (groupsErr) throw groupsErr;
 
-      // Intentar contar miembros por grupo (depende de RLS)
-      const ids = valid.map(g => g.id);
+      const roleByGroupId = {};
+      (memberRows ?? []).forEach(r => {
+        if (r.group_id) roleByGroupId[r.group_id] = r.role;
+      });
+
+      const valid = (groupsRows ?? [])
+        .filter(g => g?.is_active)
+        .map(g => ({ ...g, myRole: roleByGroupId[g.id] }));
+
+      const ids = valid.map(g => g.id).filter(Boolean);
       let counts = {};
       if (ids.length > 0) {
         const { data: md } = await supabase
@@ -184,15 +188,9 @@ export function HomeScreen({ navigation }) {
       const groupIds = (memberRows ?? []).map(r => r.group_id).filter(Boolean);
       if (!groupIds.length) { setDailyMatch(null); return; }
 
-      const { data, error } = await supabase
+      const { data: rec, error } = await supabase
         .from('group_recommendations')
-        .select(`
-          final_score,
-          rank,
-          generated_at,
-          recommendation_groups (group_name),
-          books (nombre_libro, autor, genero)
-        `)
+        .select('group_id, book_id, final_score, rank, generated_at')
         .eq('rank', 1)
         .in('group_id', groupIds)
         .order('final_score', { ascending: false })
@@ -201,8 +199,28 @@ export function HomeScreen({ navigation }) {
         .maybeSingle();
 
       if (error) throw error;
-      setDailyMatch(data ?? null);
-    } catch {
+      if (!rec) { setDailyMatch(null); return; }
+
+      const [{ data: groupRow }, { data: bookRow }] = await Promise.all([
+        supabase
+          .from('recommendation_groups')
+          .select('group_name')
+          .eq('id', rec.group_id)
+          .maybeSingle(),
+        supabase
+          .from('books')
+          .select('nombre_libro, autor, genero')
+          .eq('id', rec.book_id)
+          .maybeSingle(),
+      ]);
+
+      setDailyMatch({
+        ...rec,
+        recommendation_groups: groupRow ?? {},
+        books: bookRow ?? {},
+      });
+    } catch (e) {
+      console.warn('loadDailyMatch error:', e.message);
       setDailyMatch(null);
     }
   }, [user?.id]);
