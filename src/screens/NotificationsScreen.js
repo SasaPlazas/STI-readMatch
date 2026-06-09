@@ -6,6 +6,8 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 
+let notificationsFeatureAvailable = true;
+
 const TYPE_META = {
   recommendation_updated: { icon: '✦', color: colors.lime, label: 'Recommendation' },
   member_joined:          { icon: '◎', color: colors.purple, label: 'New member' },
@@ -52,7 +54,7 @@ export function NotificationsScreen({ navigation }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [disabled, setDisabled] = useState(false);
+  const [disabled, setDisabled] = useState(!notificationsFeatureAvailable);
 
   useEffect(() => {
     if (!user?.id || disabled) return;
@@ -65,6 +67,7 @@ export function NotificationsScreen({ navigation }) {
         .order('created_at', { ascending: false })
         .limit(50);
       if (error) {
+        notificationsFeatureAvailable = false;
         setDisabled(true);
         setNotifications([]);
         setLoading(false);

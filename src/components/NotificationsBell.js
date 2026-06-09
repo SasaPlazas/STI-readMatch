@@ -5,9 +5,11 @@ import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
+let notificationsFeatureAvailable = true;
+
 export function NotificationsBell({ navigation, userId, light = false }) {
   const [unread, setUnread] = useState(0);
-  const [disabled, setDisabled] = useState(false);
+  const [disabled, setDisabled] = useState(!notificationsFeatureAvailable);
 
   useFocusEffect(useCallback(() => {
     if (!userId || disabled) return;
@@ -18,6 +20,7 @@ export function NotificationsBell({ navigation, userId, light = false }) {
       .eq('is_read', false)
       .then(({ count, error }) => {
         if (error) {
+          notificationsFeatureAvailable = false;
           setDisabled(true);
           setUnread(0);
           return;
