@@ -39,6 +39,10 @@ function badgeColor(id = "") {
   return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
 }
 
+function toPct(value) {
+  return Math.round((Number(value) || 0) * 100);
+}
+
 function MemberCard({ member }) {
   const prefs = member.user_preferences ?? {};
   const archetype = prefs.archetype ?? "";
@@ -86,6 +90,11 @@ function RecCard({ rec, index }) {
     : Math.round((rec.score ?? 0) * 100);
   const why = rec.explanation?.why_recommended ?? rec.reasons?.[0] ?? null;
   const isTop = index === 0;
+  const metricItems = [
+    { label: "Content", value: toPct(rec.content_score ?? rec.final_score) },
+    { label: "Fairness", value: toPct(rec.fairness_score) },
+    { label: "Coverage", value: toPct(rec.member_coverage) },
+  ];
 
   return (
     <View style={styles.recCard}>
@@ -118,6 +127,14 @@ function RecCard({ rec, index }) {
             ✦ {why}
           </Text>
         ) : null}
+        <View style={styles.statsRow}>
+          {metricItems.map((item) => (
+            <View key={item.label} style={styles.statPill}>
+              <Text style={styles.statLabel}>{item.label}</Text>
+              <Text style={styles.statValue}>{item.value}%</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={[styles.scoreBubble, isTop && styles.scoreBubbleTop]}>
@@ -159,7 +176,9 @@ export function GroupDetailScreen({ navigation, route }) {
               .eq("group_id", groupId),
             supabase
               .from("group_recommendations")
-              .select("rank, final_score, explanation, book_id")
+              .select(
+                "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id",
+              )
               .eq("group_id", groupId)
               .order("rank", { ascending: true })
               .limit(3),
@@ -569,6 +588,32 @@ const styles = StyleSheet.create({
     color: colors.purple,
     marginTop: 8,
     lineHeight: 17,
+  },
+  statsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  statPill: {
+    minWidth: 74,
+    borderRadius: radii.lg,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(22,16,46,0.05)",
+  },
+  statLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "rgba(22,16,46,0.45)",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: colors.ink,
+    marginTop: 2,
   },
   scoreBubble: {
     alignItems: "center",
