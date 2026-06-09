@@ -62,6 +62,51 @@ async def healthcheck() -> HealthResponse:
     return HealthResponse(status="ok", service=settings.app_name)
 
 
+@app.get("/health/supabase")
+async def supabase_healthcheck() -> dict[str, Any]:
+    supabase_url_set = bool(settings.supabase_url)
+    service_key_set = bool(settings.supabase_service_role_key)
+    if not supabase_url_set or not service_key_set:
+        return {
+            "ok": False,
+            "supabase_url_set": supabase_url_set,
+            "supabase_service_role_key_set": service_key_set,
+        }
+
+    repo = get_repository()
+    checks: dict[str, Any] = {
+        "ok": True,
+        "supabase_url_set": True,
+        "supabase_service_role_key_set": True,
+        "books_read_ok": False,
+        "group_members_read_ok": False,
+        "group_recommendations_read_ok": False,
+    }
+
+    try:
+        repo.client.table("books").select("id").limit(1).execute()
+        checks["books_read_ok"] = True
+    except Exception as exc:
+        checks["ok"] = False
+        checks["books_error"] = str(exc)
+
+    try:
+        repo.client.table("group_members").select("user_id").limit(1).execute()
+        checks["group_members_read_ok"] = True
+    except Exception as exc:
+        checks["ok"] = False
+        checks["group_members_error"] = str(exc)
+
+    try:
+        repo.client.table("group_recommendations").select("group_id").limit(1).execute()
+        checks["group_recommendations_read_ok"] = True
+    except Exception as exc:
+        checks["ok"] = False
+        checks["group_recommendations_error"] = str(exc)
+
+    return checks
+
+
 @app.post("/api/recommendations/recompute")
 async def recompute_recommendations(payload: RecommendationRequest) -> dict[str, Any]:
     repo = get_repository()
