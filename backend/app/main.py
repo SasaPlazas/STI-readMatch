@@ -34,6 +34,16 @@ def get_repository() -> SupabaseRepository:
     return SupabaseRepository()
 
 
+@app.get("/")
+async def root() -> dict[str, Any]:
+    return {
+        "ok": True,
+        "service": settings.app_name,
+        "health": "/health",
+        "docs": "/docs",
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 async def healthcheck() -> HealthResponse:
     return HealthResponse(status="ok", service=settings.app_name)
