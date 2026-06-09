@@ -9,7 +9,6 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
-import { getGroupRecommendations } from '../utils/recommendations';
 
 const BADGE_COLORS = [
   colors.purple, colors.coral, colors.lavender,
@@ -105,8 +104,6 @@ export function GroupDetailScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [metodo, setMetodo] = useState('media_sigma');
 
-  const localRecs = getGroupRecommendations(groupId ?? 'g1', 3, metodo);
-
   useEffect(() => {
     if (!groupId) { setLoading(false); return; }
     async function load() {
@@ -128,9 +125,18 @@ export function GroupDetailScreen({ navigation, route }) {
             .order('rank', { ascending: true })
             .limit(3),
         ]);
+
+        let nextRecs = r ?? [];
+        try {
+          const remote = await triggerGroupRecommendations(groupId, metodo);
+          nextRecs = remote?.recommendations ?? nextRecs;
+        } catch (_) {
+          // Keep the latest persisted rows if the Python service is unavailable.
+        }
+
         setGroup(g ?? null);
         setMembers(m ?? []);
-        setRecs(r ?? []);
+        setRecs(nextRecs);
       } catch (e) {
         console.warn('GroupDetail load error:', e.message);
       } finally {
@@ -138,15 +144,13 @@ export function GroupDetailScreen({ navigation, route }) {
       }
     }
     load();
-  }, [groupId]);
+  }, [groupId, metodo]);
 
   const groupName = group?.group_name ?? '—';
   const vibes = Array.isArray(group?.vibe) ? group.vibe : [];
   const initials = groupInitials(groupName);
   const headerBg = badgeColor(groupId ?? '');
   const hasTelegram = Boolean(group?.telegram_chat_id);
-
-  const recsToShow = recs.length > 0 ? recs : localRecs;
 
   function handleTelegram() {
     Alert.alert(
@@ -241,7 +245,7 @@ export function GroupDetailScreen({ navigation, route }) {
             ))}
           </View>
 
-          {loading ? null : recsToShow.length === 0 ? (
+          {loading ? null : recs.length === 0 ? (
             <View style={styles.emptyRecs}>
               <Text style={styles.emptyRecsText}>
                 No recommendations yet — the engine runs once your circle has members and preferences.
@@ -249,7 +253,7 @@ export function GroupDetailScreen({ navigation, route }) {
             </View>
           ) : (
             <View style={styles.recList}>
-              {recsToShow.map((rec, i) => (
+              {recs.map((rec, i) => (
                 <RecCard key={rec.rank ?? i} rec={rec} index={i} />
               ))}
             </View>

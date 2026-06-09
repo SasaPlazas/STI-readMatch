@@ -1,41 +1,15 @@
-import { ANTHROPIC_API_KEY } from '../config/secrets';
+import { apiFetch } from '../lib/api';
 
 export async function generateReveal(archetype, prefs) {
-  const topBooks = prefs.top_books
-    ?.map((b) => b.title ?? b.nombre_libro)
-    .filter(Boolean)
-    .join(', ') ?? 'not specified';
-
-  const prompt = `Eres un experto en perfiles lectores.
-El usuario es un lector con perfil: ${archetype}
-
-Sus datos:
-- Géneros favoritos: ${prefs.favorite_genres?.join(', ') ?? 'variados'}
-- Estilos narrativos: ${prefs.narrative_styles?.join(', ') ?? 'variados'}
-- Profundidad: ${prefs.depth_preference ?? 'balanced'}
-- Apertura a nuevos géneros: ${prefs.openness_score ?? 50}/100
-- Valores al leer en grupo: ${prefs.group_values?.join(', ') ?? 'variados'}
-- Libros favoritos: ${topBooks}
-
-Escribe EXACTAMENTE 2 oraciones en español, en segunda persona, cálidas y precisas, que describan su personalidad como lector y cómo aporta a un grupo de lectura. Solo las 2 oraciones, sin títulos ni explicaciones adicionales.`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const data = await apiFetch('/api/reveal', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 150,
-      messages: [{ role: 'user', content: prompt }],
+      archetype,
+      preferences: prefs,
     }),
   });
 
-  if (!response.ok) throw new Error(`API error: ${response.status}`);
-  const data = await response.json();
-  return data.content?.[0]?.text ?? '';
+  return data?.reveal_text ?? '';
 }
 
 const ARCHETYPES = [

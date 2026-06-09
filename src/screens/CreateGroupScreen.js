@@ -4,7 +4,7 @@ import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
 import { RMButton } from '../components/RMButton';
 import { supabase } from '../lib/supabase';
-import { createGroupWithMembers } from '../utils/userStorage';
+import { createGroupWithMembers, triggerGroupRecommendations } from '../utils/userStorage';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
@@ -85,6 +85,11 @@ export function CreateGroupScreen({ navigation }) {
         tgOn,
         friendUserIds: selectedFriends.map((f) => f.user_id),
       });
+      try {
+        await triggerGroupRecommendations(groupId);
+      } catch (_) {
+        // The group can still be created even if the first recompute fails.
+      }
       setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
       setError(e?.message || 'Could not create the circle');

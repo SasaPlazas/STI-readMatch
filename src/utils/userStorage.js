@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/api";
 
 export async function getAuthedUserId() {
   const { data, error } = await supabase.auth.getSession();
@@ -98,9 +99,11 @@ export async function insertUserWeights(weights) {
 }
 
 export async function triggerGroupRecommendations(groupId, metodo = 'media_sigma') {
-  const { data, error } = await supabase.functions.invoke('group-recommendations', {
-    body: { group_id: groupId, metodo },
+  return apiFetch('/api/recommendations/recompute', {
+    method: 'POST',
+    body: JSON.stringify({
+      group_id: groupId,
+      metodo,
+    }),
   })
-  if (error) throw error
-  return data
 }

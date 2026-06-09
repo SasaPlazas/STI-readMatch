@@ -1,0 +1,149 @@
+from __future__ import annotations
+
+import math
+from statistics import mean
+from typing import Any
+
+
+ALL_TAGS = [
+    "literary",
+    "sci-fi",
+    "fantasy",
+    "mystery",
+    "romance",
+    "memoir",
+    "essays",
+    "history",
+    "horror",
+    "poetry",
+    "climate",
+    "politics",
+    "dark",
+    "thriller",
+    "nonfiction",
+    "slice-of-life",
+]
+
+
+def normalize_tag(value: str) -> str:
+    return value.strip().lower()
+
+
+def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
+    dot = sum(a * b for a, b in zip(vec_a, vec_b))
+    norm_a = math.sqrt(sum(a * a for a in vec_a))
+    norm_b = math.sqrt(sum(b * b for b in vec_b))
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def preferences_to_vector(preferences: dict[str, Any]) -> list[float]:
+    tags = preferences.get("favorite_genres") or preferences.get("tags") or []
+    normalized_tags = [normalize_tag(str(tag)) for tag in tags]
+
+    tag_vec = [1.0 if any(tag in normalized for normalized in normalized_tags) else 0.0 for tag in ALL_TAGS]
+
+    depth_preference = str(preferences.get("depth_preference", "balanced")).lower()
+    depth = {
+        "light": 0.25,
+        "balanced": 0.5,
+        "deep": 1.0,
+        "experimental": 0.9,
+    }.get(depth_preference, 0.5)
+    openness = float(preferences.get("openness_score", 60) or 60) / 100.0
+
+    return [*tag_vec, depth, openness]
+
+
+def book_to_vector(book: dict[str, Any]) -> list[float]:
+    genre = normalize_tag(str(book.get("genero") or book.get("genre") or ""))
+    tag_vec = [1.0 if tag in genre else 0.0 for tag in ALL_TAGS]
+    complexity = {
+        "low": 0.25,
+        "medium": 0.5,
+        "high": 1.0,
+    }.get(str(book.get("complexity", "medium")).lower(), 0.5)
+    return [*tag_vec, complexity, 0.5]
+
+
+def aggregate_scores(scores: list[float], metodo: str) -> float:
+    if not scores:
+        return 0.0
+
+    if metodo == "promedio":
+        return sum(scores) / len(scores)
+    if metodo == "min_miseria":
+        return min(scores)
+    if metodo == "max_placer":
+        high = max(scores)
+        return high if high >= 0.4 else 0.0
+
+    score_mean = mean(scores)
+    variance = sum((item - score_mean) ** 2 for item in scores) / len(scores)
+    sigma = math.sqrt(variance)
+    return score_mean * (1 - sigma)
+
+
+def build_explanation(scores: list[float], metodo: str) -> dict[str, Any]:
+    if not scores:
+        return {
+            "metodo": metodo,
+            "scores_individuales": [],
+            "polarizacion": 0.0,
+            "why_recommended": "Aun no hay suficientes perfiles para justificar una recomendacion.",
+        }
+
+    max_score = max(scores)
+    min_score = min(scores)
+    polarization = max_score - min_score
+
+    return {
+        "metodo": metodo,
+        "scores_individuales": scores,
+        "polarizacion": polarization,
+        "why_recommended": (
+            "Consenso solido en el grupo"
+            if polarization < 0.3
+            else "Divide opiniones pero amplifica la diversidad del grupo"
+        ),
+    }
+
+
+def score_group_books(
+    members: list[dict[str, Any]],
+    books: list[dict[str, Any]],
+    group_id: str,
+    metodo: str,
+    top_n: int,
+) -> list[dict[str, Any]]:
+    scored: list[dict[str, Any]] = []
+
+    for book in books:
+        book_vec = book_to_vector(book)
+        member_scores: list[float] = []
+
+        for member in members:
+            preferences = member.get("user_preferences") or {}
+            user_vec = preferences_to_vector(preferences)
+            member_scores.append(cosine_similarity(user_vec, book_vec))
+
+        final_score = aggregate_scores(member_scores, metodo)
+        explanation = build_explanation(member_scores, metodo)
+
+        scored.append(
+            {
+                "group_id": group_id,
+                "book_id": book["id"],
+                "rank": 0,
+                "final_score": final_score,
+                "explanation": explanation,
+            }
+        )
+
+    ranked = sorted(scored, key=lambda item: item["final_score"], reverse=True)[:top_n]
+
+    for index, item in enumerate(ranked, start=1):
+        item["rank"] = index
+
+    return ranked

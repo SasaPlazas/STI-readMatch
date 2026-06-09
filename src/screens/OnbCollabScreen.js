@@ -3,7 +3,12 @@ import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { RMButton } from "../components/RMButton";
 import { supabase } from "../lib/supabase";
-import { createGroupWithMembers, insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
+import {
+  createGroupWithMembers,
+  insertUserWeights,
+  triggerGroupRecommendations,
+  upsertUserPreferences,
+} from "../utils/userStorage";
 import { useAuth } from "../context/AuthContext";
 import { colors, radii } from "../theme/tokens";
 
@@ -93,6 +98,11 @@ export function OnbCollabScreen() {
         tgOn,
         friendUserIds: selectedFriends.map((f) => f.user_id),
       });
+      try {
+        await triggerGroupRecommendations(groupId);
+      } catch (_) {
+        // Onboarding should keep moving even if the first recompute fails.
+      }
       try { await upsertUserPreferences({ onboarding_completed: true }); } catch (_) {}
       try {
         if (selectedVibes.length) {

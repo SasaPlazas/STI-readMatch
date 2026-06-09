@@ -22,5 +22,6 @@ module.exports = ({ config }) => ({
     ...(config.extra || {}),
     EXPO_PUBLIC_SUPABASE_URL: env.EXPO_PUBLIC_SUPABASE_URL,
     EXPO_PUBLIC_SUPABASE_ANON_KEY: env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+    EXPO_PUBLIC_API_URL: env.EXPO_PUBLIC_API_URL,
   },
 });
