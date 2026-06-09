@@ -31,15 +31,33 @@ class SupabaseRepository:
 
     def fetch_group_members(self, group_id: str) -> list[dict[str, Any]]:
         try:
-            response = (
+            members_response = (
                 self.client.table("group_members")
-                .select(
-                    "user_id, role, influence_weight, user_preferences(favorite_genres, depth_preference, openness_score)"
-                )
+                .select("user_id, role, influence_weight")
                 .eq("group_id", group_id)
                 .execute()
             )
-            return response.data or []
+            members = members_response.data or []
+            user_ids = [row.get("user_id") for row in members if row.get("user_id")]
+            if not user_ids:
+                return members
+
+            preferences_response = (
+                self.client.table("user_preferences")
+                .select("user_id, favorite_genres, depth_preference, openness_score")
+                .in_("user_id", user_ids)
+                .execute()
+            )
+            preferences_rows = preferences_response.data or []
+            preferences_by_user_id = {row.get("user_id"): row for row in preferences_rows if row.get("user_id")}
+
+            return [
+                {
+                    **member,
+                    "user_preferences": preferences_by_user_id.get(member.get("user_id")) or {},
+                }
+                for member in members
+            ]
         except Exception as exc:
             self._raise_supabase_error("fetch_group_members", exc)
             return []
