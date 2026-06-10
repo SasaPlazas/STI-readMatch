@@ -1,3 +1,4 @@
+import * as Clipboard from "expo-clipboard";
 import { triggerGroupRecommendations } from "../utils/userStorage";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "react-native";
@@ -157,6 +158,7 @@ export function GroupDetailScreen({ navigation, route }) {
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [metodo, setMetodo] = useState("media_sigma");
 
   const loadGroupData = useCallback(async ({ skipTrigger = false } = {}) => {
@@ -166,7 +168,7 @@ export function GroupDetailScreen({ navigation, route }) {
         await Promise.all([
           supabase
             .from("recommendation_groups")
-            .select("id, group_name, vibe, telegram_chat_id, created_by")
+            .select("id, group_name, vibe, telegram_chat_id, created_by, join_code")
             .eq("id", groupId)
             .maybeSingle(),
           supabase
@@ -335,6 +337,24 @@ export function GroupDetailScreen({ navigation, route }) {
             {members.length} member{members.length !== 1 ? "s" : ""}
           </Text>
         </LinearGradient>
+
+        {/* ── Código de invitación ── */}
+        {group?.join_code && (
+          <View style={styles.codeSection}>
+            <Text style={styles.codeSectionLabel}>CÓDIGO DE INVITACIÓN</Text>
+            <Pressable
+              style={styles.codeBox}
+              onPress={async () => {
+                await Clipboard.setStringAsync(group.join_code);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              <Text style={styles.codeText}>{group.join_code}</Text>
+              <Text style={styles.codeCopyHint}>{copied ? '✓ Copiado' : 'Toca para copiar'}</Text>
+            </Pressable>
+          </View>
+        )}
 
         {/* ── Members ── */}
         {!loading && members.length > 0 && (
@@ -733,6 +753,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
+  codeSection: { marginHorizontal: 22, marginBottom: 16 },
+  codeSectionLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 8 },
+  codeBox: { backgroundColor: colors.lime, borderRadius: radii.lg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: colors.ink },
+  codeText: { fontSize: 28, fontWeight: '900', color: colors.ink, letterSpacing: 4 },
+  codeCopyHint: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)' },
   recalcBtn: {
     marginLeft: 'auto',
     borderRadius: radii.pill,

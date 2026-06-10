@@ -1,3 +1,6 @@
+// SQL migration needed in Supabase dashboard:
+// ALTER TABLE recommendation_groups ADD COLUMN IF NOT EXISTS join_code text UNIQUE;
+
 import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 
@@ -86,34 +89,31 @@ export async function createGroupWithMembers({
   } catch (e) {
     recommendationsError = e?.message ?? 'FastAPI unavailable';
   }
-  return { groupId, recommendationsTriggered, recommendationsError };
+  return { groupId, joinCode, recommendationsTriggered, recommendationsError };
 }
 
-export async function joinGroupByLink(rawLink) {
-  const match = rawLink
-    .trim()
-    .match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-  if (!match) throw new Error("Link inválido — pega el link completo");
-  const groupId = match[1];
+export async function joinGroupByCode(code) {
+  const trimmed = code.trim().toUpperCase();
   const { data, error } = await supabase
     .from("recommendation_groups")
     .select("id, group_name")
-    .eq("id", groupId)
+    .eq("join_code", trimmed)
     .eq("is_active", true)
-    .single();
-  if (error || !data) throw new Error("Grupo no encontrado o inactivo");
+    .maybeSingle();
+  if (error || !data) throw new Error("Código inválido o grupo no encontrado");
   const userId = await getAuthedUserId();
   const { error: joinErr } = await supabase.from("group_members").insert({
-    group_id: groupId,
+    group_id: data.id,
     user_id: userId,
     role: "member",
     influence_weight: 1.0,
   });
-  if (joinErr) throw joinErr;
-  try {
-    await triggerGroupRecommendations(groupId);
-  } catch {}
-  return { groupId, groupName: data.group_name };
+  if (joinErr) {
+    if (joinErr.code === "23505") throw new Error("Ya eres miembro de este grupo");
+    throw joinErr;
+  }
+  try { await triggerGroupRecommendations(data.id); } catch {}
+  return { groupId: data.id, groupName: data.group_name };
 }
 
 export async function insertUserWeights(weights) {

@@ -61,7 +61,7 @@ export function CreateGroupScreen({ navigation }) {
   const [selectedFriends, setSelectedFriends] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [groupLink, setGroupLink] = useState(null);
+  const [groupCode, setGroupCode] = useState(null);
   const [createdGroupId, setCreatedGroupId] = useState(null);
   const savingRef = useRef(false);
   const selectedFriendsRef = useRef(selectedFriends);
@@ -119,14 +119,14 @@ export function CreateGroupScreen({ navigation }) {
     setSaving(true);
     setError("");
     try {
-      const { groupId } = await createGroupWithMembers({
+      const { groupId, joinCode } = await createGroupWithMembers({
         groupName: name.trim() || "My Circle",
         vibes: selectedVibes,
         tgOn,
         friendUserIds: selectedFriends.map((f) => f.user_id),
       });
       setCreatedGroupId(groupId);
-      setGroupLink(`readmatch://join/${groupId}`);
+      setGroupCode(joinCode ?? groupId.slice(0, 6).toUpperCase());
     } catch (e) {
       setError(e?.message || "Could not create the circle");
     } finally {
@@ -135,14 +135,14 @@ export function CreateGroupScreen({ navigation }) {
     }
   };
 
-  if (groupLink) {
+  if (groupCode) {
     return (
       <Screen
         backgroundColor={colors.ink}
         footer={
           <View style={{ gap: 10 }}>
             <RMButton
-              title="Ver recomendaciones →"
+              title="Entrar al círculo →"
               variant="primary"
               onPress={() =>
                 navigation.navigate(routes.GroupDetail, { groupId: createdGroupId })
@@ -157,21 +157,23 @@ export function CreateGroupScreen({ navigation }) {
         }
       >
         <View style={styles.linkWrap}>
-          <Text style={styles.linkKicker}>✦ Circle created</Text>
+          <Text style={styles.linkKicker}>✦ Tu círculo está listo</Text>
           <Text style={styles.linkTitle}>
-            Share this{"\n"}
-            <Text style={styles.linkAccent}>link</Text>
+            Comparte{"\n"}
+            <Text style={styles.linkAccent}>este código</Text>
           </Text>
           <Text style={styles.linkSub}>
-            with your friends so they can join your circle.
+            con tus amigos para que se unan al círculo.
           </Text>
+          <View style={styles.codeDisplayBox}>
+            <Text style={styles.codeDisplayText}>{groupCode}</Text>
+          </View>
           <TextInput
-            value={groupLink}
+            value={groupCode}
             editable={false}
             selectTextOnFocus
-            style={styles.linkInput}
+            style={styles.codeReadonlyInput}
           />
-          <Text style={styles.linkHint}>Select the text to copy it</Text>
           {tgOn && (
             <Text style={styles.linkTgNote}>
               The Telegram bot will activate when you connect it — placeholder
@@ -590,22 +592,33 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 28,
   },
-  linkInput: {
+  codeDisplayBox: {
+    backgroundColor: colors.lime,
+    borderRadius: radii.lg,
+    padding: 20,
+    alignItems: "center",
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(212,255,61,0.6)",
+  },
+  codeDisplayText: {
+    fontSize: 36,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: 6,
+  },
+  codeReadonlyInput: {
     backgroundColor: "rgba(255,255,255,0.07)",
     borderRadius: radii.md,
     padding: 14,
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 18,
+    fontWeight: "900",
     color: colors.lime,
-    letterSpacing: 0.3,
+    letterSpacing: 4,
     borderWidth: 0.5,
     borderColor: "rgba(212,255,61,0.3)",
-  },
-  linkHint: {
-    marginTop: 8,
-    fontSize: 11,
-    color: "rgba(251,246,235,0.38)",
-    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
   },
   linkTgNote: {
     marginTop: 20,

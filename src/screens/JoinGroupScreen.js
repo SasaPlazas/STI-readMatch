@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
-import { RMButton } from '../components/RMButton';
-import { joinGroupByLink } from '../utils/userStorage';
+import { joinGroupByCode } from '../utils/userStorage';
 import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
@@ -27,21 +26,15 @@ function groupBadgeColor(id = '') {
 }
 
 export function JoinGroupScreen({ navigation }) {
-  const [deepLink, setDeepLink] = useState('');
+  const [code, setCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
-  const [joinSuccess, setJoinSuccess] = useState(null);
-
-  const [code, setCode] = useState('');
-  const [found, setFound] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [codeError, setCodeError] = useState('');
+  const [joinSuccess, setJoinSuccess] = useState('');
+  const [joinedGroupId, setJoinedGroupId] = useState(null);
 
   const [nameQuery, setNameQuery] = useState('');
   const [nameResults, setNameResults] = useState([]);
   const [nameSearching, setNameSearching] = useState(false);
-
-  const [discoverGroups, setDiscoverGroups] = useState([]);
 
   useEffect(() => {
     if (nameQuery.length < 2) { setNameResults([]); return; }
@@ -50,81 +43,41 @@ export function JoinGroupScreen({ navigation }) {
       try {
         const { data } = await supabase
           .from('recommendation_groups')
-          .select('id, group_name, vibe, created_at')
+          .select('id, group_name, vibe, join_code')
           .ilike('group_name', `%${nameQuery}%`)
           .eq('is_active', true)
-          .limit(10);
+          .limit(8);
         setNameResults(data ?? []);
       } catch {
         setNameResults([]);
       } finally {
         setNameSearching(false);
       }
-    }, 600);
+    }, 500);
     return () => clearTimeout(timer);
   }, [nameQuery]);
 
-  useEffect(() => {
-    supabase
-      .from('recommendation_groups')
-      .select('id, group_name, vibe, group_members(count)')
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .limit(6)
-      .then(({ data }) => setDiscoverGroups(data ?? []));
-  }, []);
-
-  const onJoinByLink = async () => {
-    if (!deepLink.trim() || joining) return;
+  const handleJoinByCode = async () => {
+    const trimmed = code.trim();
+    if (trimmed.length < 4 || joining) return;
     setJoining(true);
     setJoinError('');
-    setJoinSuccess(null);
+    setJoinSuccess('');
+    setJoinedGroupId(null);
     try {
-      const result = await joinGroupByLink(deepLink);
+      const result = await joinGroupByCode(trimmed);
       setJoinSuccess(result.groupName ?? 'tu círculo');
-      setDeepLink('');
+      setJoinedGroupId(result.groupId);
+      setCode('');
     } catch (e) {
-      setJoinError(e?.message || 'No se pudo unir al grupo');
+      setJoinError(e?.message || 'Código inválido o grupo no encontrado');
     } finally {
       setJoining(false);
     }
   };
 
-  async function handleSearch() {
-    const trimmed = code.trim().toUpperCase();
-    if (trimmed.length < 4) { setCodeError('Enter at least 4 characters'); return; }
-    setCodeError('');
-    setSearching(true);
-    try {
-      const { data } = await supabase
-        .from('recommendation_groups')
-        .select('id, group_name, vibe')
-        .eq('join_code', trimmed)
-        .eq('is_active', true)
-        .maybeSingle();
-      if (data) { setFound(data); }
-      else { setCodeError('No group found with that code. Check and try again.'); setFound(null); }
-    } catch {
-      setCodeError('Error searching. Try again.');
-      setFound(null);
-    } finally {
-      setSearching(false);
-    }
-  }
-
   return (
-    <Screen
-      backgroundColor={colors.cream}
-      footer={
-        found ? (
-          <RMButton
-            title="Ver perfil del grupo →"
-            variant="dark"
-            onPress={() => navigation.navigate(routes.GroupPreview, { groupId: found.id })}
-          />
-        ) : null
-      }
-    >
+    <Screen backgroundColor={colors.cream}>
       <TopBar title="Unirse a un círculo" onBack={() => navigation.goBack()} />
 
       <View style={styles.header}>
@@ -135,60 +88,74 @@ export function JoinGroupScreen({ navigation }) {
         </Text>
       </View>
 
-      {/* Deep link join */}
+      {/* SECCIÓN A — Código de grupo */}
       <View style={styles.card}>
-        <Text style={styles.cardLabel}>GOT A LINK</Text>
-        <Text style={styles.cardTitle}>Paste your invite link</Text>
-        <View style={styles.linkRow}>
+        <Text style={styles.cardLabel}>CÓDIGO DEL GRUPO</Text>
+        <Text style={styles.cardTitle}>Ingresa el código de invitación</Text>
+        <View style={styles.inputRow}>
           <TextInput
-            value={deepLink}
-            onChangeText={(v) => { setDeepLink(v); setJoinError(''); setJoinSuccess(null); }}
-            placeholder="readmatch://join/…"
+            value={code}
+            onChangeText={(v) => {
+              setCode(v.toUpperCase());
+              setJoinError('');
+              setJoinSuccess('');
+              setJoinedGroupId(null);
+            }}
+            placeholder="ej. RM-A3F7"
             placeholderTextColor="rgba(22,16,46,0.3)"
-            autoCapitalize="none"
+            autoCapitalize="characters"
             autoCorrect={false}
-            style={styles.linkInput}
-            onSubmitEditing={onJoinByLink}
+            maxLength={8}
+            style={styles.codeInput}
+            onSubmitEditing={handleJoinByCode}
           />
-          {deepLink.length > 0 && (
-            <Pressable onPress={() => { setDeepLink(''); setJoinError(''); setJoinSuccess(null); }} style={styles.clearBtn}>
+          {code.length > 0 && (
+            <Pressable
+              onPress={() => { setCode(''); setJoinError(''); setJoinSuccess(''); setJoinedGroupId(null); }}
+              style={styles.clearBtn}
+            >
               <Text style={styles.clearText}>✕</Text>
             </Pressable>
           )}
         </View>
+        <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
         {joinError ? <Text style={styles.errText}>{joinError}</Text> : null}
         {joinSuccess ? (
           <View style={styles.successBox}>
-            <Text style={styles.successText}>You joined {joinSuccess}! 🎉</Text>
-            <Pressable onPress={() => navigation.navigate(routes.Home)} style={styles.goHome}>
-              <Text style={styles.goHomeText}>Go to dashboard →</Text>
+            <Text style={styles.successText}>¡Te uniste a {joinSuccess}! 🎉</Text>
+            <Pressable
+              onPress={() => navigation.navigate(routes.GroupDetail, { groupId: joinedGroupId })}
+              style={styles.goHome}
+            >
+              <Text style={styles.goHomeText}>Ir al grupo →</Text>
             </Pressable>
           </View>
         ) : (
           <Pressable
-            onPress={onJoinByLink}
-            disabled={!deepLink.trim() || joining}
-            style={[styles.joinBtn, (!deepLink.trim() || joining) && styles.joinBtnDisabled]}
+            onPress={handleJoinByCode}
+            disabled={code.length < 4 || joining}
+            style={[styles.joinBtn, (code.length < 4 || joining) && styles.joinBtnDisabled, { marginTop: 12 }]}
           >
-            <Text style={styles.joinBtnText}>{joining ? 'Joining…' : 'Join circle'}</Text>
+            <Text style={styles.joinBtnText}>{joining ? 'Uniéndose…' : 'Unirse'}</Text>
           </Pressable>
         )}
       </View>
 
-      {/* Search by name */}
+      {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
         <Text style={styles.dividerText}>or search by name</Text>
         <View style={styles.dividerLine} />
       </View>
 
+      {/* SECCIÓN B — Buscar por nombre */}
       <View style={styles.inputCard}>
         <Text style={styles.inputLabel}>GROUP NAME</Text>
         <View style={styles.nameInputRow}>
           <TextInput
             value={nameQuery}
             onChangeText={(v) => { setNameQuery(v); }}
-            placeholder="Search circles by name…"
+            placeholder="Buscar círculos por nombre…"
             placeholderTextColor="rgba(22,16,46,0.3)"
             autoCapitalize="none"
             autoCorrect={false}
@@ -206,7 +173,7 @@ export function JoinGroupScreen({ navigation }) {
             {nameResults.map((item) => (
               <Pressable
                 key={item.id}
-                onPress={() => navigation.navigate(routes.GroupPreview, { groupId: item.id })}
+                onPress={() => navigation.navigate(routes.GroupDetail, { groupId: item.id })}
                 style={styles.nameResultRow}
               >
                 <View style={[styles.nameResultBadge, { backgroundColor: groupBadgeColor(item.id) }]}>
@@ -225,122 +192,17 @@ export function JoinGroupScreen({ navigation }) {
                   )}
                 </View>
                 <View style={styles.nameResultBtn}>
-                  <Text style={styles.nameResultBtnText}>Ver grupo</Text>
+                  <Text style={styles.nameResultBtnText}>Ver →</Text>
                 </View>
               </Pressable>
             ))}
           </View>
         )}
         {nameQuery.length >= 2 && !nameSearching && nameResults.length === 0 && (
-          <Text style={[styles.errText, { marginTop: 8 }]}>No circles found matching "{nameQuery}"</Text>
+          <Text style={[styles.errText, { marginTop: 8 }]}>
+            No circles found matching "{nameQuery}"
+          </Text>
         )}
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or search by code</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Code input */}
-      <View style={styles.inputCard}>
-        <Text style={styles.inputLabel}>INVITE CODE</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            value={code}
-            onChangeText={(v) => { setCode(v.toUpperCase()); setFound(null); setCodeError(''); }}
-            placeholder="e.g. RM-A3F7"
-            placeholderTextColor="rgba(22,16,46,0.3)"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={8}
-            style={styles.codeInput}
-            onSubmitEditing={handleSearch}
-          />
-          {code.length > 0 && (
-            <Pressable onPress={() => { setCode(''); setFound(null); setCodeError(''); }} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </Pressable>
-          )}
-        </View>
-        <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
-        {codeError ? <Text style={styles.errText}>{codeError}</Text> : null}
-        <Pressable
-          onPress={handleSearch}
-          disabled={code.length < 4 || searching}
-          style={[styles.joinBtn, (code.length < 4 || searching) && styles.joinBtnDisabled, { marginTop: 12 }]}
-        >
-          <Text style={styles.joinBtnText}>{searching ? 'Searching…' : 'Find group'}</Text>
-        </Pressable>
-      </View>
-
-      {found && (
-        <Pressable
-          onPress={() => navigation.navigate(routes.GroupPreview, { groupId: found.id })}
-          style={styles.foundCard}
-        >
-          <View style={[styles.foundBadge, { backgroundColor: groupBadgeColor(found.id) }]}>
-            <Text style={styles.foundBadgeText}>{groupInitials(found.group_name)}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.foundName}>{found.group_name}</Text>
-            {Array.isArray(found.vibe) && found.vibe.length > 0 && (
-              <View style={styles.vibeChipsRow}>
-                {found.vibe.slice(0, 3).map((v) => (
-                  <View key={v} style={styles.vibeChip}>
-                    <Text style={styles.vibeChipText}>{v}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-          <View style={styles.previewBtn}>
-            <Text style={styles.previewBtnText}>Ver →</Text>
-          </View>
-        </Pressable>
-      )}
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or explore popular circles</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      <View style={styles.browseList}>
-        {discoverGroups.map((g) => {
-          const memberCount = g.group_members?.[0]?.count ?? 0;
-          const vibes = Array.isArray(g.vibe) ? g.vibe : [];
-          const bg = groupBadgeColor(g.id);
-          return (
-            <Pressable key={g.id} onPress={() => navigation.navigate(routes.GroupPreview, { groupId: g.id })} style={styles.browseRow}>
-              <View style={[styles.browseBadge, { backgroundColor: bg + '33' }]}>
-                <Text style={[styles.browseBadgeText, { color: bg }]}>
-                  {groupInitials(g.group_name)}
-                </Text>
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.browseName}>{g.group_name}</Text>
-                {vibes.length > 0 && (
-                  <View style={styles.vibeChipsRow}>
-                    {vibes.slice(0, 2).map((v) => (
-                      <View key={v} style={styles.vibeChip}>
-                        <Text style={styles.vibeChipText}>{v}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-              <View style={styles.browseMeta}>
-                <Text style={styles.browseCount}>{memberCount} member{memberCount !== 1 ? 's' : ''}</Text>
-                <View style={styles.browseArrow}>
-                  <Text style={styles.browseArrowText}>›</Text>
-                </View>
-              </View>
-            </Pressable>
-          );
-        })}
       </View>
     </Screen>
   );
@@ -359,7 +221,7 @@ const styles = StyleSheet.create({
   clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(22,16,46,0.08)', alignItems: 'center', justifyContent: 'center' },
   clearText: { fontSize: 11, color: 'rgba(22,16,46,0.5)', fontWeight: '900' },
   errText: { fontSize: 12, fontWeight: '700', color: colors.coral, marginBottom: 8 },
-  successBox: { backgroundColor: 'rgba(212,255,61,0.1)', borderRadius: radii.md, padding: 12, gap: 8 },
+  successBox: { backgroundColor: 'rgba(212,255,61,0.1)', borderRadius: radii.md, padding: 12, gap: 8, marginTop: 12 },
   successText: { fontSize: 13, fontWeight: '800', color: colors.ink },
   goHome: { alignSelf: 'flex-start' },
   goHomeText: { fontSize: 13, fontWeight: '800', color: colors.purple },
@@ -397,7 +259,6 @@ const styles = StyleSheet.create({
   browseCount: { fontSize: 10, fontWeight: '800', color: 'rgba(22,16,46,0.45)' },
   browseArrow: { width: 26, height: 26, borderRadius: 8, backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
   browseArrowText: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
-  // Name search
   nameInputRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: 'rgba(22,16,46,0.12)', paddingBottom: 6, gap: 8 },
   nameInput: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.ink, paddingVertical: 4 },
   nameResults: { marginTop: 10, gap: 8 },
