@@ -85,18 +85,37 @@ export function OnbCollabScreen({ navigation }) {
     setFriendSearching(true);
     const t = setTimeout(async () => {
       try {
-        const { data } = await supabase.rpc("search_users", {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('search_users', {
           query: friendQuery.trim(),
         });
+        if (rpcErr) throw rpcErr;
         setFriendResults(
-          (data ?? []).filter(
-            (r) =>
-              !selectedFriendsRef.current.some((f) => f.user_id === r.user_id),
+          (rpcData ?? []).filter(
+            (r) => !selectedFriendsRef.current.some((f) => f.user_id === r.user_id),
           ),
         );
-      } catch (_) {}
-      setFriendSearching(false);
-    }, 500);
+      } catch (_rpcErr) {
+        try {
+          const { data: fallback } = await supabase
+            .from('user_preferences')
+            .select('user_id, username')
+            .ilike('username', `%${friendQuery.trim()}%`)
+            .limit(15);
+          const mapped = (fallback ?? []).map((r) => ({
+            user_id: r.user_id,
+            username: r.username ?? '',
+            email: '',
+          })).filter(
+            (r) => !selectedFriendsRef.current.some((f) => f.user_id === r.user_id),
+          );
+          setFriendResults(mapped);
+        } catch (_) {
+          setFriendResults([]);
+        }
+      } finally {
+        setFriendSearching(false);
+      }
+    }, 400);
     return () => clearTimeout(t);
   }, [friendQuery]);
 

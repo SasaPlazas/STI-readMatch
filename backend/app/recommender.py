@@ -6,22 +6,18 @@ from typing import Any
 
 
 ALL_TAGS = [
-    # Géneros en español (como están en la tabla books)
-    "fantasía", "romance", "thriller", "ciencia ficción", "clásico",
-    "distopía", "ficción", "no ficción", "terror", "misterio",
-    "juvenil", "manga", "romantasy", "negocios", "tecnología",
-    "fantasía romántica",
-    # Tags adicionales en inglés (para compatibilidad con user_preferences)
-    "literary", "sci-fi", "fantasy", "mystery", "horror", "memoir",
-    "essays", "history", "poetry", "climate", "politics", "dark",
-    "nonfiction",
+    "literary", "sci-fi", "fantasy", "mystery", "romance", "memoir",
+    "essays", "history", "horror", "poetry", "climate", "politics",
+    "dark", "thriller", "nonfiction", "slice-of-life",
+    "fantasía", "ciencia ficción", "misterio", "terror", "clásico",
+    "distopía", "ficción", "juvenil", "manga", "negocios", "tecnología",
+    "no ficción", "romantasy", "fantasía romántica",
 ]
 
 ALL_STYLES = [
     "dark academia", "cozy fantasy", "psychological", "emotional narratives",
     "philosophical", "fast thrillers", "sci-fi worlds", "character-driven",
-    # En español
-    "psicológico", "emotivo", "filosófico", "oscuro", "acción rápida",
+    "oscuro", "psicológico", "filosófico", "emotivo", "acción rápida",
 ]
 
 ALL_GROUP_VALUES = ["fun", "perspectives", "harmony", "emo", "quality", "deep"]
@@ -111,12 +107,11 @@ def book_to_vector(book: dict[str, Any]) -> list[float]:
         for tag in ALL_TAGS
     ]
 
-    raw_complexity = str(book.get("complejidad_narrativa") or "media").lower().strip()
     depth_val = {
         "baja": 0.25, "low": 0.25,
-        "media": 0.5,  "medium": 0.5,
-        "alta": 1.0,   "high": 1.0,
-    }.get(raw_complexity, 0.5)
+        "media": 0.5, "medium": 0.5,
+        "alta": 1.0, "high": 1.0,
+    }.get((book.get("complejidad_narrativa") or "").strip().lower(), 0.5)
 
     popularity = float(book.get("popularity_score") or 0.1)
     popularity = max(0.0, min(1.0, popularity))

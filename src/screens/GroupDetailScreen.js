@@ -3,7 +3,7 @@ import { triggerGroupRecommendations } from "../utils/userStorage";
 import { useCallback, useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -159,6 +159,12 @@ export function GroupDetailScreen({ navigation, route }) {
   const [recalculating, setRecalculating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [metodo, setMetodo] = useState("media_sigma");
+  const [joiningGroup, setJoiningGroup] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteQuery, setInviteQuery] = useState('');
+  const [inviteResults, setInviteResults] = useState([]);
+  const [inviteSearching, setInviteSearching] = useState(false);
+  const [inviting, setInviting] = useState(null);
 
   const loadGroupData = useCallback(async ({ skipTrigger = false } = {}) => {
     if (!groupId) return;
@@ -177,7 +183,7 @@ export function GroupDetailScreen({ navigation, route }) {
           supabase
             .from("group_recommendations")
             .select(
-              "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id",
+              "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id, generated_at",
             )
             .eq("group_id", groupId)
             .order("rank", { ascending: true })
@@ -219,13 +225,13 @@ export function GroupDetailScreen({ navigation, route }) {
         }));
       }
 
-      if (!skipTrigger) {
-        try {
-          const remote = await triggerGroupRecommendations(groupId, metodo);
-          nextRecs = remote?.recommendations ?? nextRecs;
-        } catch (_) {
-          // Keep the latest persisted rows if the Python service is unavailable.
-        }
+      const ONE_HOUR = 60 * 60 * 1000;
+      const generated_at = nextRecs?.[0]?.generated_at;
+      const isStale = !generated_at || (Date.now() - new Date(generated_at).getTime() > ONE_HOUR);
+
+      if (isStale && !skipTrigger) {
+        triggerGroupRecommendations(groupId, metodo).catch(() => {});
+        setTimeout(() => loadGroupData({ skipTrigger: true }), 3000);
       }
 
       setGroup(g ?? null);
@@ -284,6 +290,92 @@ export function GroupDetailScreen({ navigation, route }) {
   const headerBg = badgeColor(groupId ?? "");
   const hasTelegram = Boolean(group?.telegram_chat_id);
   const isAdmin = user?.id === group?.created_by;
+  const isMember = !loading && members.some((m) => m.user_id === user?.id);
+
+  useEffect(() => {
+    if (!showInvite || inviteQuery.trim().length < 2) {
+      setInviteResults([]);
+      return;
+    }
+    setInviteSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('search_users', {
+          query: inviteQuery.trim(),
+        });
+        if (rpcErr) throw rpcErr;
+        const currentIds = new Set(members.map((m) => m.user_id));
+        setInviteResults((rpcData ?? []).filter((r) => !currentIds.has(r.user_id)));
+      } catch (_) {
+        try {
+          const { data: fallback } = await supabase
+            .from('user_preferences')
+            .select('user_id, username')
+            .ilike('username', `%${inviteQuery.trim()}%`)
+            .limit(10);
+          const currentIds = new Set(members.map((m) => m.user_id));
+          setInviteResults(
+            (fallback ?? [])
+              .map((r) => ({ user_id: r.user_id, username: r.username ?? '', email: '' }))
+              .filter((r) => !currentIds.has(r.user_id)),
+          );
+        } catch (_) {
+          setInviteResults([]);
+        }
+      } finally {
+        setInviteSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [inviteQuery, showInvite, members]);
+
+  const addMember = async (targetUserId) => {
+    if (!groupId || !targetUserId) return;
+    setInviting(targetUserId);
+    try {
+      const { error } = await supabase.from('group_members').insert({
+        group_id: groupId,
+        user_id: targetUserId,
+        role: 'member',
+        influence_weight: 1.0,
+      });
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Ya es miembro', 'Este usuario ya pertenece al círculo.');
+        } else {
+          throw error;
+        }
+      } else {
+        setShowInvite(false);
+        setInviteQuery('');
+        setInviteResults([]);
+        await loadGroupData({ skipTrigger: true });
+      }
+    } catch (e) {
+      Alert.alert('Error', e?.message ?? 'No se pudo agregar al miembro');
+    } finally {
+      setInviting(null);
+    }
+  };
+
+  const onJoinGroup = async () => {
+    setJoiningGroup(true);
+    try {
+      const { error: joinErr } = await supabase.from("group_members").insert({
+        group_id: groupId,
+        user_id: user.id,
+        role: "member",
+        influence_weight: 1.0,
+      });
+      if (joinErr && joinErr.code !== "23505") throw joinErr;
+      try { await triggerGroupRecommendations(groupId); } catch {}
+      await loadGroupData({ skipTrigger: true });
+    } catch (e) {
+      Alert.alert("Error", e?.message || "No se pudo unir al círculo");
+    } finally {
+      setJoiningGroup(false);
+    }
+  };
 
   const onLeaveGroup = () => {
     Alert.alert(
@@ -384,7 +476,7 @@ export function GroupDetailScreen({ navigation, route }) {
         </LinearGradient>
 
         {/* ── Código de invitación ── */}
-        {group?.join_code && (
+        {isMember && group?.join_code && (
           <View style={styles.codeSection}>
             <Text style={styles.codeSectionLabel}>CÓDIGO DE INVITACIÓN</Text>
             <Pressable
@@ -402,18 +494,89 @@ export function GroupDetailScreen({ navigation, route }) {
         )}
 
         {/* ── Members ── */}
-        {!loading && members.length > 0 && (
+        {!loading && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Members</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.membersRow}
-            >
-              {members.map((m) => (
-                <MemberCard key={m.user_id} member={m} />
-              ))}
-            </ScrollView>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Members</Text>
+              <Pressable
+                onPress={() => {
+                  setShowInvite((v) => !v);
+                  setInviteQuery('');
+                  setInviteResults([]);
+                }}
+                style={styles.addMemberBtn}
+              >
+                <Text style={styles.addMemberBtnText}>+ Add</Text>
+              </Pressable>
+            </View>
+
+            {members.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.membersRow}
+              >
+                {members.map((m) => (
+                  <MemberCard key={m.user_id} member={m} />
+                ))}
+              </ScrollView>
+            )}
+
+            {showInvite && (
+              <View style={styles.invitePanel}>
+                <View style={styles.inviteSearchRow}>
+                  <TextInput
+                    value={inviteQuery}
+                    onChangeText={setInviteQuery}
+                    placeholder="Buscar por usuario o email…"
+                    placeholderTextColor="rgba(22,16,46,0.35)"
+                    style={styles.inviteInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                  />
+                  {inviteSearching && (
+                    <Text style={styles.inviteSpinner}>···</Text>
+                  )}
+                </View>
+
+                {inviteResults.length > 0 && (
+                  <View style={styles.inviteResults}>
+                    {inviteResults.map((r) => {
+                      const label = r.username || r.email?.split('@')[0] || '?';
+                      const isInviting = inviting === r.user_id;
+                      return (
+                        <Pressable
+                          key={r.user_id}
+                          style={styles.inviteResultRow}
+                          onPress={() => addMember(r.user_id)}
+                          disabled={isInviting}
+                        >
+                          <View style={styles.inviteAvatar}>
+                            <Text style={styles.inviteAvatarText}>
+                              {label[0].toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inviteName}>{label}</Text>
+                            {r.email ? (
+                              <Text style={styles.inviteEmail}>{r.email}</Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.inviteAddBtn}>
+                            {isInviting ? '…' : '+ Agregar'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {inviteQuery.length >= 2 && !inviteSearching && inviteResults.length === 0 && (
+                  <Text style={styles.inviteEmpty}>No se encontraron usuarios</Text>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -512,10 +675,22 @@ export function GroupDetailScreen({ navigation, route }) {
           </View>
         )}
 
-        {/* ── Acciones destructivas ── */}
+        {/* ── Acciones ── */}
         {!loading && group && (
           <View style={styles.dangerSection}>
-            {isAdmin ? (
+            {!isMember ? (
+              <Pressable
+                onPress={onJoinGroup}
+                disabled={joiningGroup}
+                style={[styles.joinGroupBtn, joiningGroup && { opacity: 0.5 }]}
+              >
+                {joiningGroup ? (
+                  <ActivityIndicator color={colors.cream} />
+                ) : (
+                  <Text style={styles.joinGroupBtnText}>Unirse al círculo</Text>
+                )}
+              </Pressable>
+            ) : isAdmin ? (
               <Pressable onPress={onDeleteGroup} style={styles.dangerBtn}>
                 <Text style={styles.dangerBtnText}>Eliminar círculo</Text>
               </Pressable>
@@ -891,6 +1066,88 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.coral,
     letterSpacing: 0.1,
+  },
+  joinGroupBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: radii.xl,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+  },
+  joinGroupBtnText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.cream,
+    letterSpacing: 0.1,
+  },
+  addMemberBtn: {
+    marginLeft: 'auto',
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: colors.ink,
+  },
+  addMemberBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.cream,
+  },
+  invitePanel: {
+    marginTop: 12,
+    backgroundColor: colors.white,
+    borderRadius: radii.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.08)',
+    gap: 8,
+  },
+  inviteSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(22,16,46,0.1)',
+    paddingBottom: 8,
+  },
+  inviteInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.ink,
+    paddingVertical: 4,
+  },
+  inviteSpinner: {
+    fontSize: 14,
+    color: 'rgba(22,16,46,0.35)',
+    letterSpacing: 2,
+  },
+  inviteResults: { gap: 2 },
+  inviteResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(22,16,46,0.04)',
+  },
+  inviteAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.lavender,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  inviteAvatarText: { fontSize: 13, fontWeight: '900', color: colors.ink },
+  inviteName: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  inviteEmail: { fontSize: 11, fontWeight: '600', color: 'rgba(22,16,46,0.45)', marginTop: 1 },
+  inviteAddBtn: { fontSize: 12, fontWeight: '800', color: colors.purple, flexShrink: 0 },
+  inviteEmpty: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(22,16,46,0.4)',
+    textAlign: 'center',
+    paddingVertical: 8,
   },
 });
 
