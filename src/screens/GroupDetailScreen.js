@@ -262,8 +262,9 @@ export function GroupDetailScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!groupId) return;
+    const channelName = `group-recs-${groupId}-${Date.now()}`;
     const channel = supabase
-      .channel(`group-recs-${groupId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
