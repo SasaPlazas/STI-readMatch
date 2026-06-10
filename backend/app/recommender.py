@@ -6,18 +6,31 @@ from typing import Any
 
 
 ALL_TAGS = [
-    "literary", "sci-fi", "fantasy", "mystery", "romance", "memoir",
-    "essays", "history", "horror", "poetry", "climate", "politics",
-    "dark", "thriller", "nonfiction", "slice-of-life",
-    "fantasía", "ciencia ficción", "misterio", "terror", "clásico",
-    "distopía", "ficción", "juvenil", "manga", "negocios", "tecnología",
-    "no ficción", "romantasy", "fantasía romántica",
+    # Géneros en español (valores exactos de la columna `genero`)
+    "fantasía", "romance", "thriller", "ciencia ficción", "clásico",
+    "distopía", "ficción", "no ficción", "terror", "misterio",
+    "juvenil", "manga", "romantasy", "fantasía romántica",
+    "negocios", "tecnología",
+    # Tropos en español (valores exactos de la columna `trope`)
+    "enemies to lovers", "redención", "intriga política", "viaje del héroe",
+    "supervivencia", "detective brillante", "academia militar",
+    "narrador poco fiable", "elegida especial", "battle royale",
+    "fake dating", "historia humana", "sociedad controlada",
+    "finanzas personales", "opposites attract", "matrimonio tóxico",
+    "culpa y redención", "competencia mortal", "innovación",
+    "casa embrujada", "buenas prácticas", "elegido", "rivales a amantes",
+    "conspiración", "mundo virtual", "vigilancia total", "whodunit",
+    "imperio en caída", "mesías reacio", "batalla intelectual",
+    "amor prohibido", "realismo mágico", "narrador inusual",
+    "coming of age", "última humanidad", "caballero errante",
+    "guardiana secreta", "beauty and the beast", "mal ancestral",
+    "rebelión", "genio incomprendido",
 ]
 
 ALL_STYLES = [
-    "dark academia", "cozy fantasy", "psychological", "emotional narratives",
-    "philosophical", "fast thrillers", "sci-fi worlds", "character-driven",
-    "oscuro", "psicológico", "filosófico", "emotivo", "acción rápida",
+    "enemies to lovers", "redención", "intriga política",
+    "viaje del héroe", "supervivencia", "detective brillante",
+    "academia militar", "narrador poco fiable",
 ]
 
 ALL_GROUP_VALUES = ["fun", "perspectives", "harmony", "emo", "quality", "deep"]

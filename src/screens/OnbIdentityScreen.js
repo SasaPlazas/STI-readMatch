@@ -17,14 +17,14 @@ import { routes } from "../navigation/routes";
 import { supabase } from "../lib/supabase";
 
 const STORIES = [
-  { id: "dark", label: "Dark Academia", gradient: ["#2B1B69", "#16102E"], ink: colors.lime, mood: "velvet · ivy · candle" },
-  { id: "cozy", label: "Cozy Fantasy", gradient: ["#FF7E6B", "#FBF6EB"], ink: colors.ink, mood: "tea · hearth · familiar" },
-  { id: "psyc", label: "Psychological", gradient: ["#7C5BFF", "#E8E0FF"], ink: colors.ink, mood: "unreliable · interior" },
-  { id: "emo", label: "Emotional Narratives", gradient: ["#FF7E6B", "#7C5BFF"], ink: colors.cream, mood: "heart · ache · home" },
-  { id: "phi", label: "Philosophical", gradient: ["#16102E", "#3A2F5C"], ink: colors.lime, mood: "idea · paradox · slow" },
-  { id: "thr", label: "Fast Thrillers", gradient: ["#D4FF3D", "#94B82A"], ink: colors.ink, mood: "pulse · cliff · grip" },
-  { id: "sci", label: "Sci-Fi Worlds", gradient: ["#7C5BFF", "#16102E"], ink: colors.lime, mood: "orbit · code · soft" },
-  { id: "char", label: "Character-driven", gradient: ["#FBF6EB", "#F0E6D2"], ink: colors.ink, mood: "voice · arc · life" },
+  { id: "enl",  label: "Enemies to lovers",   gradient: ["#2B1B69", "#16102E"], ink: colors.lime,  mood: "tensión · giro · fuego" },
+  { id: "red",  label: "Redención",           gradient: ["#FF7E6B", "#FBF6EB"], ink: colors.ink,   mood: "caída · perdón · vuelta" },
+  { id: "int",  label: "Intriga política",     gradient: ["#16102E", "#3A2F5C"], ink: colors.lime,  mood: "poder · secreto · traición" },
+  { id: "via",  label: "Viaje del héroe",      gradient: ["#D4FF3D", "#94B82A"], ink: colors.ink,   mood: "llamado · prueba · regreso" },
+  { id: "sup",  label: "Supervivencia",        gradient: ["#7C5BFF", "#16102E"], ink: colors.lime,  mood: "límite · instinto · escape" },
+  { id: "det",  label: "Detective brillante",  gradient: ["#FBF6EB", "#F0E6D2"], ink: colors.ink,   mood: "pista · lógica · verdad" },
+  { id: "aca",  label: "Academia militar",     gradient: ["#FF7E6B", "#7C5BFF"], ink: colors.cream, mood: "rango · rivalidad · lealtad" },
+  { id: "nar",  label: "Narrador poco fiable", gradient: ["#534AB7", "#AFA9EC"], ink: colors.cream, mood: "duda · giro · mentira" },
 ];
 
 const GENRES = [
@@ -40,7 +40,7 @@ const GENRES = [
   { id: "mis",  label: "Misterio",          color: colors.lavender },
   { id: "jov",  label: "Juvenil",           color: colors.lime },
   { id: "man",  label: "Manga",             color: colors.coral },
-  { id: "rom2", label: "Romantasy",         color: colors.purple },
+  { id: "rot",  label: "Romantasy",         color: colors.purple },
   { id: "neg",  label: "Negocios",          color: colors.cream, outline: true },
   { id: "tec",  label: "Tecnología",        color: colors.lavender },
 ];
@@ -75,48 +75,30 @@ export function OnbIdentityScreen({ navigation }) {
     const timer = setTimeout(async () => {
       try {
         const already = new Set(selectedAuthorsRef.current.map((a) => a.key));
-        const queryLower = authorQuery.toLowerCase();
+        const q = authorQuery.trim();
 
-        // Primary: search authors from existing user preferences in Supabase
         const { data } = await supabase
-          .from("user_preferences")
-          .select("favorite_authors")
-          .not("favorite_authors", "is", null)
+          .from("books")
+          .select("autor")
+          .ilike("autor", `%${q}%`)
           .limit(20);
 
         const seen = new Set();
-        const supabaseAuthors = [];
+        const results = [];
         for (const row of (data ?? [])) {
-          for (const name of (row.favorite_authors ?? [])) {
-            if (typeof name !== "string" || !name) continue;
-            const lower = name.toLowerCase();
-            const key = `sb_${lower.replace(/\s+/g, "_")}`;
-            if (!seen.has(lower) && lower.includes(queryLower) && !already.has(key)) {
-              seen.add(lower);
-              supabaseAuthors.push({ key, name });
-            }
-          }
+          const name = row.autor;
+          if (!name || seen.has(name.toLowerCase())) continue;
+          seen.add(name.toLowerCase());
+          const key = `bk_${name.toLowerCase().replace(/\s+/g, "_")}`;
+          if (!already.has(key)) results.push({ key, name });
         }
-
-        if (supabaseAuthors.length >= 3) {
-          setAuthorResults(supabaseAuthors.slice(0, 8));
-        } else {
-          // Fallback: Open Library when Supabase has fewer than 3 matches
-          const url = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorQuery)}&limit=8`;
-          const res = await fetch(url);
-          const olData = await res.json();
-          const supabaseNames = new Set(supabaseAuthors.map((a) => a.name.toLowerCase()));
-          const olResults = (olData.docs ?? [])
-            .map((d) => ({ key: d.key, name: d.name }))
-            .filter((a) => a.name && !already.has(a.key) && !supabaseNames.has(a.name.toLowerCase()));
-          setAuthorResults([...supabaseAuthors, ...olResults].slice(0, 8));
-        }
+        setAuthorResults(results.slice(0, 8));
       } catch {
         setAuthorResults([]);
       } finally {
         setAuthorSearching(false);
       }
-    }, 500);
+    }, 400);
     return () => clearTimeout(timer);
   }, [authorQuery]);
 

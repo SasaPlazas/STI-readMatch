@@ -58,8 +58,8 @@ const LANGUAGE_OPTIONS = [
 ];
 
 const CONTENT_OPTIONS = [
-  { id: "all_ages", label: "Solo apto para todos" },
-  { id: "include_18", label: "Incluir contenido +18" },
+  { id: "all",    label: "Para todos los públicos" },
+  { id: "inc_18", label: "Incluir contenido +18"  },
 ];
 
 const COMPLEXITY_OPTIONS = [
@@ -83,10 +83,10 @@ export function OnbPersonalityScreen({ navigation }) {
   const [error, setError] = useState("");
   const savingRef = useRef(false);
   const [preferredComplexity, setPreferredComplexity] = useState([]);
-  const [selectedLangs, setSelectedLangs] = useState(['es', 'en']);
-  const [contentPref, setContentPref] = useState('all_ages');
+  const [selectedLangs, setSelectedLangs] = useState(new Set(["es", "en"]));
+  const [contentPref, setContentPref]     = useState("all");
 
-  const canContinue = !saving && selectedLangs.length >= 1;
+  const canContinue = !saving && selectedLangs.size >= 1;
 
   const sliderWidth = useRef(0);
   const panResponder = useRef(
@@ -130,9 +130,12 @@ export function OnbPersonalityScreen({ navigation }) {
   }
 
   function toggleLang(id) {
-    setSelectedLangs((prev) =>
-      prev.includes(id) ? prev.filter((l) => l !== id) : [...prev, id]
-    );
+    setSelectedLangs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id) && next.size > 1) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   return (
@@ -155,8 +158,8 @@ export function OnbPersonalityScreen({ navigation }) {
                 depth_preference: depth,
                 openness_score: openness,
                 group_values: Array.from(values),
-                preferred_languages: selectedLangs.map(id =>
-                  LANGUAGE_OPTIONS.find(l => l.id === id)?.label ?? id
+                preferred_languages: Array.from(selectedLangs).map(
+                  (id) => LANGUAGE_OPTIONS.find((l) => l.id === id)?.label ?? id
                 ),
                 preferred_complexity: preferredComplexity,
                 content_preferences: [contentPref],
@@ -166,7 +169,7 @@ export function OnbPersonalityScreen({ navigation }) {
               const weights = [
                 { category: "depth", item: depth, score: 1 },
                 { category: "openness", item: "discovery", score: openness / 100 },
-                { category: "language", item: selectedLangs.join(","), score: 1 },
+                { category: "language", item: Array.from(selectedLangs).join(","), score: 1 },
                 ...Array.from(values).map((id) => ({
                   category: "collab_value",
                   item: id,
@@ -400,7 +403,7 @@ export function OnbPersonalityScreen({ navigation }) {
         <Text style={styles.sectionHint}>MÍNIMO 1 PARA CONTINUAR</Text>
         <View style={styles.valueChips}>
           {LANGUAGE_OPTIONS.map((l) => {
-            const on = selectedLangs.includes(l.id);
+            const on = selectedLangs.has(l.id);
             return (
               <Pressable
                 key={l.id}
