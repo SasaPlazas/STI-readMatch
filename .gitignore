@@ -13,4 +13,5 @@ Thumbs.db
 .env.*
 backend/.env
 src/config/secrets.js
+backend/.venv/
 
