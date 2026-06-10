@@ -54,6 +54,8 @@ export async function createGroupWithMembers({
   tgOn,
   friendUserIds,
 }) {
+  const joinCode = 'RM-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
   const { data: groupId, error } = await supabase.rpc(
     "create_group_with_admin",
     {
@@ -63,6 +65,8 @@ export async function createGroupWithMembers({
     },
   );
   if (error) throw error;
+
+  await supabase.from("recommendation_groups").update({ join_code: joinCode }).eq("id", groupId);
   if (friendUserIds?.length) {
     const { error: membErr } = await supabase.from("group_members").insert(
       friendUserIds.map((uid) => ({

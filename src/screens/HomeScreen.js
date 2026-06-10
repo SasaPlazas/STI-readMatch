@@ -13,6 +13,7 @@ import { Screen } from "../components/Screen";
 import { NotificationsBell } from "../components/NotificationsBell";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../lib/api";
+import { triggerGroupRecommendations } from "../utils/userStorage";
 import { supabase } from "../lib/supabase";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
@@ -210,6 +211,21 @@ export function HomeScreen({ navigation }) {
       }
 
       setGroups(valid.map((g) => ({ ...g, memberCount: counts[g.id] ?? 1 })));
+
+      // Fire-and-forget: trigger recompute for groups missing recommendations
+      ;(async () => {
+        for (const gId of groupIds) {
+          const { data: existing } = await supabase
+            .from("group_recommendations")
+            .select("group_id")
+            .eq("group_id", gId)
+            .limit(1)
+            .maybeSingle();
+          if (!existing) {
+            triggerGroupRecommendations(gId).catch(() => {});
+          }
+        }
+      })();
     } catch (e) {
       console.warn("loadGroups error:", e.message);
     } finally {

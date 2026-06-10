@@ -1,13 +1,30 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
-import { Avatar } from '../components/Avatar';
 import { RMButton } from '../components/RMButton';
 import { joinGroupByLink } from '../utils/userStorage';
-import { DISCOVERABLE_GROUPS, MEMBERS } from '../data/sample';
+import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
+
+const BADGE_COLORS = [colors.purple, colors.coral, colors.lavender, colors.violet, colors.lime];
+
+function strHash(s = '') {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+
+function groupInitials(name = '') {
+  return (
+    name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase() || '?'
+  );
+}
+
+function groupBadgeColor(id = '') {
+  return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
+}
 
 export function JoinGroupScreen({ navigation }) {
   const [deepLink, setDeepLink] = useState('');
@@ -19,6 +36,43 @@ export function JoinGroupScreen({ navigation }) {
   const [found, setFound] = useState(null);
   const [searching, setSearching] = useState(false);
   const [codeError, setCodeError] = useState('');
+
+  const [nameQuery, setNameQuery] = useState('');
+  const [nameResults, setNameResults] = useState([]);
+  const [nameSearching, setNameSearching] = useState(false);
+
+  const [discoverGroups, setDiscoverGroups] = useState([]);
+
+  useEffect(() => {
+    if (nameQuery.length < 2) { setNameResults([]); return; }
+    const timer = setTimeout(async () => {
+      setNameSearching(true);
+      try {
+        const { data } = await supabase
+          .from('recommendation_groups')
+          .select('id, group_name, vibe, created_at')
+          .ilike('group_name', `%${nameQuery}%`)
+          .eq('is_active', true)
+          .limit(10);
+        setNameResults(data ?? []);
+      } catch {
+        setNameResults([]);
+      } finally {
+        setNameSearching(false);
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [nameQuery]);
+
+  useEffect(() => {
+    supabase
+      .from('recommendation_groups')
+      .select('id, group_name, vibe, group_members(count)')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }) => setDiscoverGroups(data ?? []));
+  }, []);
 
   const onJoinByLink = async () => {
     if (!deepLink.trim() || joining) return;
@@ -36,17 +90,26 @@ export function JoinGroupScreen({ navigation }) {
     }
   };
 
-  function handleSearch() {
+  async function handleSearch() {
     const trimmed = code.trim().toUpperCase();
     if (trimmed.length < 4) { setCodeError('Enter at least 4 characters'); return; }
     setCodeError('');
     setSearching(true);
-    setTimeout(() => {
-      const match = DISCOVERABLE_GROUPS.find((g) => g.code === trimmed);
-      setSearching(false);
-      if (match) { setFound(match); }
+    try {
+      const { data } = await supabase
+        .from('recommendation_groups')
+        .select('id, group_name, vibe')
+        .eq('join_code', trimmed)
+        .eq('is_active', true)
+        .maybeSingle();
+      if (data) { setFound(data); }
       else { setCodeError('No group found with that code. Check and try again.'); setFound(null); }
-    }, 900);
+    } catch {
+      setCodeError('Error searching. Try again.');
+      setFound(null);
+    } finally {
+      setSearching(false);
+    }
   }
 
   return (
@@ -112,6 +175,67 @@ export function JoinGroupScreen({ navigation }) {
         )}
       </View>
 
+      {/* Search by name */}
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>or search by name</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <View style={styles.inputCard}>
+        <Text style={styles.inputLabel}>GROUP NAME</Text>
+        <View style={styles.nameInputRow}>
+          <TextInput
+            value={nameQuery}
+            onChangeText={(v) => { setNameQuery(v); }}
+            placeholder="Search circles by name…"
+            placeholderTextColor="rgba(22,16,46,0.3)"
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.nameInput}
+          />
+          {nameSearching && <ActivityIndicator size="small" color={colors.purple} />}
+          {nameQuery.length > 0 && !nameSearching && (
+            <Pressable onPress={() => { setNameQuery(''); setNameResults([]); }} style={styles.clearBtn}>
+              <Text style={styles.clearText}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+        {nameResults.length > 0 && (
+          <View style={styles.nameResults}>
+            {nameResults.map((item) => (
+              <Pressable
+                key={item.id}
+                onPress={() => navigation.navigate(routes.GroupPreview, { groupId: item.id })}
+                style={styles.nameResultRow}
+              >
+                <View style={[styles.nameResultBadge, { backgroundColor: groupBadgeColor(item.id) }]}>
+                  <Text style={styles.nameResultBadgeText}>{groupInitials(item.group_name)}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.nameResultName}>{item.group_name}</Text>
+                  {Array.isArray(item.vibe) && item.vibe.length > 0 && (
+                    <View style={styles.vibeChipsRow}>
+                      {item.vibe.slice(0, 3).map((v) => (
+                        <View key={v} style={styles.vibeChip}>
+                          <Text style={styles.vibeChipText}>{v}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+                <View style={styles.nameResultBtn}>
+                  <Text style={styles.nameResultBtnText}>Ver grupo</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {nameQuery.length >= 2 && !nameSearching && nameResults.length === 0 && (
+          <Text style={[styles.errText, { marginTop: 8 }]}>No circles found matching "{nameQuery}"</Text>
+        )}
+      </View>
+
       {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
@@ -126,7 +250,7 @@ export function JoinGroupScreen({ navigation }) {
           <TextInput
             value={code}
             onChangeText={(v) => { setCode(v.toUpperCase()); setFound(null); setCodeError(''); }}
-            placeholder="e.g. DR9981"
+            placeholder="e.g. RM-A3F7"
             placeholderTextColor="rgba(22,16,46,0.3)"
             autoCapitalize="characters"
             autoCorrect={false}
@@ -156,21 +280,20 @@ export function JoinGroupScreen({ navigation }) {
           onPress={() => navigation.navigate(routes.GroupPreview, { groupId: found.id })}
           style={styles.foundCard}
         >
-          <View style={[styles.foundBadge, { backgroundColor: found.color }]}>
-            <Text style={styles.foundBadgeText}>{found.initials}</Text>
+          <View style={[styles.foundBadge, { backgroundColor: groupBadgeColor(found.id) }]}>
+            <Text style={styles.foundBadgeText}>{groupInitials(found.group_name)}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.foundName}>{found.name}</Text>
-            <Text style={styles.foundMood}>{found.mood}</Text>
-            <View style={styles.foundMeta}>
-              <View style={styles.foundAvatars}>
-                {found.memberIds.slice(0, 3).map((id, i) => {
-                  const m = MEMBERS.find((mem) => mem.id === id);
-                  return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -8 }}><Avatar m={m} size={22} /></View> : null;
-                })}
+            <Text style={styles.foundName}>{found.group_name}</Text>
+            {Array.isArray(found.vibe) && found.vibe.length > 0 && (
+              <View style={styles.vibeChipsRow}>
+                {found.vibe.slice(0, 3).map((v) => (
+                  <View key={v} style={styles.vibeChip}>
+                    <Text style={styles.vibeChipText}>{v}</Text>
+                  </View>
+                ))}
               </View>
-              <Text style={styles.foundMembers}>{found.memberIds.length} members · {found.pace}</Text>
-            </View>
+            )}
           </View>
           <View style={styles.previewBtn}>
             <Text style={styles.previewBtnText}>Ver →</Text>
@@ -186,32 +309,38 @@ export function JoinGroupScreen({ navigation }) {
       </View>
 
       <View style={styles.browseList}>
-        {DISCOVERABLE_GROUPS.map((g) => (
-          <Pressable key={g.id} onPress={() => navigation.navigate(routes.GroupPreview, { groupId: g.id })} style={styles.browseRow}>
-            <View style={[styles.browseBadge, { backgroundColor: g.color + '33' }]}>
-              <Text style={[styles.browseBadgeText, { color: g.color === colors.cream ? colors.ink : g.color }]}>
-                {g.initials}
-              </Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.browseName}>{g.name}</Text>
-              <Text style={styles.browseMood}>{g.mood}</Text>
-              <Text style={styles.browsePace}>{g.pace}</Text>
-            </View>
-            <View style={styles.browseMeta}>
-              <View style={styles.browseAvatars}>
-                {g.memberIds.slice(0, 2).map((id, i) => {
-                  const m = MEMBERS.find((mem) => mem.id === id);
-                  return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -6 }}><Avatar m={m} size={20} /></View> : null;
-                })}
+        {discoverGroups.map((g) => {
+          const memberCount = g.group_members?.[0]?.count ?? 0;
+          const vibes = Array.isArray(g.vibe) ? g.vibe : [];
+          const bg = groupBadgeColor(g.id);
+          return (
+            <Pressable key={g.id} onPress={() => navigation.navigate(routes.GroupPreview, { groupId: g.id })} style={styles.browseRow}>
+              <View style={[styles.browseBadge, { backgroundColor: bg + '33' }]}>
+                <Text style={[styles.browseBadgeText, { color: bg }]}>
+                  {groupInitials(g.group_name)}
+                </Text>
               </View>
-              <Text style={styles.browseCount}>{g.memberIds.length} members</Text>
-              <View style={styles.browseArrow}>
-                <Text style={styles.browseArrowText}>›</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.browseName}>{g.group_name}</Text>
+                {vibes.length > 0 && (
+                  <View style={styles.vibeChipsRow}>
+                    {vibes.slice(0, 2).map((v) => (
+                      <View key={v} style={styles.vibeChip}>
+                        <Text style={styles.vibeChipText}>{v}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-            </View>
-          </Pressable>
-        ))}
+              <View style={styles.browseMeta}>
+                <Text style={styles.browseCount}>{memberCount} member{memberCount !== 1 ? 's' : ''}</Text>
+                <View style={styles.browseArrow}>
+                  <Text style={styles.browseArrowText}>›</Text>
+                </View>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </Screen>
   );
@@ -268,4 +397,17 @@ const styles = StyleSheet.create({
   browseCount: { fontSize: 10, fontWeight: '800', color: 'rgba(22,16,46,0.45)' },
   browseArrow: { width: 26, height: 26, borderRadius: 8, backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
   browseArrowText: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
+  // Name search
+  nameInputRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: 'rgba(22,16,46,0.12)', paddingBottom: 6, gap: 8 },
+  nameInput: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.ink, paddingVertical: 4 },
+  nameResults: { marginTop: 10, gap: 8 },
+  nameResultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
+  nameResultBadge: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  nameResultBadgeText: { color: colors.ink, fontWeight: '900', fontSize: 14, letterSpacing: -0.3 },
+  nameResultName: { fontSize: 14, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
+  nameResultBtn: { borderRadius: radii.pill, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.ink },
+  nameResultBtnText: { color: colors.cream, fontWeight: '900', fontSize: 11 },
+  vibeChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
+  vibeChip: { borderRadius: radii.pill, paddingVertical: 2, paddingHorizontal: 7, backgroundColor: 'rgba(124,91,255,0.1)' },
+  vibeChipText: { fontSize: 9, fontWeight: '800', color: colors.purple },
 });

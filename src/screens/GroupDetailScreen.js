@@ -265,6 +265,18 @@ export function GroupDetailScreen({ navigation, route }) {
     return () => supabase.removeChannel(channel);
   }, [groupId, loadGroupData]);
 
+  const onRecalculate = async () => {
+    setRecalculating(true);
+    try {
+      await triggerGroupRecommendations(groupId, metodo);
+      await loadGroupData({ skipTrigger: true });
+    } catch (e) {
+      console.warn('recalculate:', e?.message);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
   const groupName = group?.group_name ?? "—";
   const vibes = Array.isArray(group?.vibe) ? group.vibe : [];
   const initials = groupInitials(groupName);
@@ -347,6 +359,17 @@ export function GroupDetailScreen({ navigation, route }) {
             <View style={styles.autoBadge}>
               <Text style={styles.autoBadgeText}>✦ AUTO</Text>
             </View>
+            <Pressable
+              onPress={onRecalculate}
+              disabled={recalculating}
+              style={[styles.recalcBtn, recalculating && styles.recalcBtnDisabled]}
+            >
+              {recalculating ? (
+                <ActivityIndicator size="small" color={colors.purple} />
+              ) : (
+                <Text style={styles.recalcBtnText}>↻ Recalcular</Text>
+              )}
+            </Pressable>
           </View>
 
           {/* Selector de método de agregación */}
@@ -710,6 +733,18 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
+  recalcBtn: {
+    marginLeft: 'auto',
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(22,16,46,0.06)',
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recalcBtnDisabled: { opacity: 0.5 },
+  recalcBtnText: { fontSize: 12, fontWeight: '800', color: colors.ink },
   tgCard: {
     flexDirection: "row",
     alignItems: "center",
