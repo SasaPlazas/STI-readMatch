@@ -43,17 +43,10 @@ FOR SELECT
 TO authenticated
 USING (true);
 
--- 4) Permite insertar miembros en un grupo:
---    - cualquier usuario puede unirse (user_id = auth.uid())
---    - el creador del grupo puede agregar a otros
+-- 4) Permite insertar miembros en un grupo a cualquier usuario autenticado
 DROP POLICY IF EXISTS "members_can_insert_group_members" ON public.group_members;
 CREATE POLICY "members_can_insert_group_members"
 ON public.group_members
 FOR INSERT
 TO authenticated
-WITH CHECK (
-  user_id = auth.uid()
-  OR auth.uid() = (
-    SELECT created_by FROM public.recommendation_groups WHERE id = group_id
-  )
-);
+WITH CHECK (true);
