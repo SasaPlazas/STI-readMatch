@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { Screen } from "../components/Screen";
-import { NotificationsBell } from "../components/NotificationsBell";
 import { useAuth } from "../context/AuthContext";
 import { apiFetch } from "../lib/api";
 import { triggerGroupRecommendations } from "../utils/userStorage";
@@ -350,7 +349,6 @@ export function HomeScreen({ navigation }) {
           <Text style={styles.h1}>Hey, {displayName} ✦</Text>
         </View>
         <View style={styles.headerRight}>
-          <NotificationsBell navigation={navigation} userId={user?.id} />
           <Pressable
             onPress={() => navigation.navigate(routes.Personality)}
             style={styles.profileBtn}

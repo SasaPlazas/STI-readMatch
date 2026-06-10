@@ -36,9 +36,6 @@ export function SplashScreen({ navigation }) {
             Have an account? <Text style={styles.signInAccent}>Sign in</Text>
           </Text>
         </Pressable>
-        <Text style={styles.allScreens} onPress={() => navigation.navigate(routes.AllScreens)}>
-          All screens
-        </Text>
       </View>
     </LinearGradient>
   );

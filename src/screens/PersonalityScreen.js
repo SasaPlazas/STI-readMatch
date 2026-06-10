@@ -9,7 +9,6 @@ import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
-const DEPTH_NUM = { light: 25, balanced: 55, deep: 82, experimental: 96 };
 const GENRE_COLORS = [
   { c: colors.purple, dark: true },
   { c: colors.coral, dark: false },
@@ -56,11 +55,7 @@ export function PersonalityScreen({ navigation }) {
 
   const genres = prefs?.favorite_genres ?? [];
   const styles_list = prefs?.narrative_styles ?? [];
-  const openness = prefs?.openness_score ?? 0;
   const depthLabel = prefs?.depth_preference ?? '—';
-  const depthNum = DEPTH_NUM[depthLabel] ?? 55;
-  const genresNum = Math.min(Math.round(genres.length / 8 * 100), 100);
-  const stylesNum = Math.min(Math.round(styles_list.length / 7 * 100), 100);
 
   const nameInitial = user?.name?.[0]?.toUpperCase() ?? '?';
   const hasReveal = Boolean(prefs?.reveal_text);
@@ -72,11 +67,6 @@ export function PersonalityScreen({ navigation }) {
           subtitle={`Reading identity · ${user?.name ?? ''}`}
           title={null}
           onBack={() => navigation.goBack()}
-          right={
-            <Pressable accessibilityRole="button" onPress={signOut} style={styles.logoutBtn}>
-              <Text style={styles.logoutText}>Sign out</Text>
-            </Pressable>
-          }
         />
 
         <View style={styles.profileCard}>
@@ -119,7 +109,6 @@ export function PersonalityScreen({ navigation }) {
           <View style={styles.miniStats}>
             {[
               { l: 'depth', v: depthLabel },
-              { l: 'openness', v: `${openness}%` },
               { l: 'circles', v: `${createdCount + joinedCount}` },
             ].map((s) => (
               <View key={s.l}>
@@ -130,27 +119,6 @@ export function PersonalityScreen({ navigation }) {
           </View>
         </View>
       </LinearGradient>
-
-      <Text style={styles.section}>Compatibility aura</Text>
-      <View style={styles.auraGrid}>
-        {[
-          { l: 'Openness', v: openness, c: colors.coral },
-          { l: 'Depth', v: depthNum, c: colors.purple },
-          { l: 'Genres', v: genresNum, c: colors.lime },
-          { l: 'Styles', v: stylesNum, c: colors.white, invert: true },
-        ].map((t) => (
-          <View key={t.l} style={[styles.auraCard, t.invert ? styles.auraInvert : { backgroundColor: t.c }]}>
-            <Text style={styles.auraKicker}>{t.l}</Text>
-            <Text style={styles.auraVal}>
-              {t.v}
-              <Text style={{ fontSize: 14 }}>%</Text>
-            </Text>
-            <View style={[styles.auraTrack, { backgroundColor: t.invert ? 'rgba(22,16,46,0.08)' : 'rgba(22,16,46,0.15)' }]}>
-              <View style={[styles.auraFill, { width: `${t.v}%` }]} />
-            </View>
-          </View>
-        ))}
-      </View>
 
       <View style={styles.sectionRow}>
         <Text style={styles.section}>Signature genres</Text>
@@ -201,6 +169,9 @@ export function PersonalityScreen({ navigation }) {
           <Text style={styles.groupLabel}>Joined</Text>
         </View>
       </View>
+      <Pressable onPress={signOut} style={styles.signOutBtn}>
+        <Text style={styles.signOutText}>Sign out</Text>
+      </Pressable>
     </Screen>
   );
 }
@@ -211,20 +182,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     paddingBottom: 18,
-  },
-  logoutBtn: {
-    height: 36,
-    paddingHorizontal: 12,
-    borderRadius: radii.pill,
-    backgroundColor: colors.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoutText: {
-    color: colors.cream,
-    fontWeight: '900',
-    fontSize: 11,
-    letterSpacing: 0.4,
   },
   profileCard: {
     marginTop: 10,
@@ -328,50 +285,6 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: -0.3,
   },
-  auraGrid: {
-    marginTop: 10,
-    marginHorizontal: 22,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  auraCard: {
-    width: '48%',
-    borderRadius: radii.lg,
-    padding: 14,
-    overflow: 'hidden',
-  },
-  auraInvert: {
-    backgroundColor: colors.white,
-    borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.08)',
-  },
-  auraKicker: {
-    fontSize: 10,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    opacity: 0.7,
-    fontWeight: '900',
-    color: colors.ink,
-  },
-  auraVal: {
-    marginTop: 8,
-    fontSize: 28,
-    fontWeight: '900',
-    color: colors.ink,
-    letterSpacing: -0.6,
-  },
-  auraTrack: {
-    marginTop: 10,
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  auraFill: {
-    height: '100%',
-    borderRadius: 2,
-    backgroundColor: colors.ink,
-  },
   sectionRow: {
     marginTop: 8,
     flexDirection: 'row',
@@ -438,5 +351,21 @@ const styles = StyleSheet.create({
     letterSpacing: 1.4,
     textTransform: 'uppercase',
     color: 'rgba(22,16,46,0.6)',
+  },
+  signOutBtn: {
+    marginTop: 32,
+    marginHorizontal: 22,
+    marginBottom: 40,
+    paddingVertical: 14,
+    borderRadius: radii.pill,
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.2)',
+    alignItems: 'center',
+  },
+  signOutText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: 'rgba(22,16,46,0.5)',
   },
 });

@@ -5,7 +5,6 @@ import { Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
-import { NotificationsBell } from "../components/NotificationsBell";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { colors, radii } from "../theme/tokens";
@@ -354,11 +353,6 @@ export function GroupDetailScreen({ navigation, route }) {
           </Pressable>
 
           <View style={styles.headerRight}>
-            <NotificationsBell
-              navigation={navigation}
-              userId={user?.id}
-              light
-            />
             <Pressable
               onPress={() => navigation.navigate(routes.Personality)}
               style={styles.profileBtnLight}
