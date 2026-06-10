@@ -36,14 +36,10 @@ There is no test runner or linter configured in this project.
 index.js → App.js → AuthProvider + NavigationContainer + AppNavigator
 ```
 
-`AppNavigator` (`src/navigation/AppNavigator.js`) branches based on platform and screen width:
-- **Mobile / narrow web** (`width < 1024`): `RootNavigator`
-- **Desktop web** (`Platform.OS === 'web' && width >= 1024`): `WebDesktopNavigator`
-
-Both navigators render either **AuthStack** or **AppStack** based on `user?.completedOnboarding`.
+`AppNavigator` (`src/navigation/AppNavigator.js`) is a thin wrapper for `RootNavigator` (`src/navigation/RootNavigator.js`), which renders either **AuthStack** or **AppStack** based on `user?.completedOnboarding`.
 
 - **AuthStack**: Splash → SignIn → CreateAccount → 5 onboarding screens (Identity, Behavior, Personality, Collab, Reveal)
-- **AppStack**: Home, Book, Groups, Compatibility, Settings, etc. Desktop screens live in `src/screens/desktop/`.
+- **AppStack**: Home, Book, Explain, Personality, CreateGroup, JoinGroup, GroupDetail, GroupPreview, Invite, GroupSettings, Sync
 
 ### State management
 
@@ -55,7 +51,9 @@ The `completedOnboarding` flag is stored in Supabase `user_metadata` and control
 
 **Supabase** is the persistence layer. Key tables: `user_preferences`, `books`, `recommendation_groups`, `group_members`, `group_recommendations`, `user_weights`.
 
-`src/utils/userStorage.js` is the primary Supabase client for reads/writes: upserts user preferences, creates groups (via the `create_group_with_admin` RPC), joins groups by link, and triggers backend recommendation recomputes. The `books` table uses `ol_key` (Open Library key) as the upsert conflict column.
+`src/utils/userStorage.js` is the primary Supabase client for reads/writes: upserts user preferences, creates groups (via the `create_group_with_admin` RPC), joins groups by link, and triggers backend recommendation recomputes. The `books` table uses `ol_key` (Open Library key) as the upsert conflict column. Groups have a `join_code` column (requires migration: `ALTER TABLE recommendation_groups ADD COLUMN IF NOT EXISTS join_code text UNIQUE`).
+
+`GroupDetailScreen` uses the `search_users` RPC to search for users to invite, with a fallback to a direct `user_preferences` ilike query if the RPC is unavailable. `GroupDetailScreen` also subscribes to real-time Supabase inserts on `group_recommendations` to auto-refresh when a recompute completes.
 
 `src/data/sample.js` still exists but only contains fallback/mock data for UI scaffolding.
 
@@ -121,7 +119,7 @@ Similarly, archetype assignment logic exists in both `src/services/revealService
 
 `src/theme/tokens.js` defines all colors, border radii, and spacing. Always use tokens rather than raw values. Key color names: `purple`, `violet`, `lime`, `coral`, `cream`, `ink`, `lavender`.
 
-Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`. Desktop-specific shell components live in `src/components/desktop/`.
+Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`, `NotificationsBell`.
 
 ### Route names
 
