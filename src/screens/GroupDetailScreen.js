@@ -49,7 +49,7 @@ function MemberCard({ member }) {
   const prefs = member.user_preferences ?? {};
   const archetype = prefs.archetype ?? "";
   const username = prefs.username ?? "";
-  const label = archetype || username || "Member";
+  const label = username || archetype || "Member";
   const initial =
     archetype?.[0]?.toUpperCase() ?? username?.[0]?.toUpperCase() ?? "?";
   const bg = badgeColor(member.user_id);
@@ -484,19 +484,24 @@ export function GroupDetailScreen({ navigation, route }) {
         </LinearGradient>
 
         {/* ── Código de invitación ── */}
-        {isMember && group?.join_code && (
+        {group && (
           <View style={styles.codeSection}>
             <Text style={styles.codeSectionLabel}>CÓDIGO DE INVITACIÓN</Text>
             <Pressable
               style={styles.codeBox}
               onPress={async () => {
-                await Clipboard.setStringAsync(group.join_code);
+                const code = group.join_code ?? group.id?.slice(0, 8).toUpperCase();
+                await Clipboard.setStringAsync(code ?? '');
                 setCopied(true);
                 setTimeout(() => setCopied(false), 2000);
               }}
             >
-              <Text style={styles.codeText}>{group.join_code}</Text>
-              <Text style={styles.codeCopyHint}>{copied ? '✓ Copiado' : 'Toca para copiar'}</Text>
+              <Text style={styles.codeText}>
+                {group.join_code ?? group.id?.slice(0, 8).toUpperCase() ?? '—'}
+              </Text>
+              <Text style={styles.codeCopyHint}>
+                {copied ? '✓ Copiado' : 'Toca para copiar'}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -1001,11 +1006,11 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
 
-  codeSection: { marginHorizontal: 22, marginBottom: 16 },
-  codeSectionLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 8 },
-  codeBox: { backgroundColor: colors.lime, borderRadius: radii.lg, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: colors.ink },
-  codeText: { fontSize: 28, fontWeight: '900', color: colors.ink, letterSpacing: 4 },
-  codeCopyHint: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)' },
+  codeSection: { marginHorizontal: 22, marginBottom: 12 },
+  codeSectionLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 6 },
+  codeBox: { backgroundColor: colors.lime, borderRadius: radii.md, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: colors.ink },
+  codeText: { fontSize: 20, fontWeight: '900', color: colors.ink, letterSpacing: 3 },
+  codeCopyHint: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.55)' },
   recalcBtn: {
     marginLeft: 'auto',
     borderRadius: radii.pill,
