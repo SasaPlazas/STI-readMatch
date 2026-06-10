@@ -6,33 +6,22 @@ from typing import Any
 
 
 ALL_TAGS = [
-    "literary",
-    "sci-fi",
-    "fantasy",
-    "mystery",
-    "romance",
-    "memoir",
-    "essays",
-    "history",
-    "horror",
-    "poetry",
-    "climate",
-    "politics",
-    "dark",
-    "thriller",
+    # Géneros en español (como están en la tabla books)
+    "fantasía", "romance", "thriller", "ciencia ficción", "clásico",
+    "distopía", "ficción", "no ficción", "terror", "misterio",
+    "juvenil", "manga", "romantasy", "negocios", "tecnología",
+    "fantasía romántica",
+    # Tags adicionales en inglés (para compatibilidad con user_preferences)
+    "literary", "sci-fi", "fantasy", "mystery", "horror", "memoir",
+    "essays", "history", "poetry", "climate", "politics", "dark",
     "nonfiction",
-    "slice-of-life",
 ]
 
 ALL_STYLES = [
-    "dark academia",
-    "cozy fantasy",
-    "psychological",
-    "emotional narratives",
-    "philosophical",
-    "fast thrillers",
-    "sci-fi worlds",
-    "character-driven",
+    "dark academia", "cozy fantasy", "psychological", "emotional narratives",
+    "philosophical", "fast thrillers", "sci-fi worlds", "character-driven",
+    # En español
+    "psicológico", "emotivo", "filosófico", "oscuro", "acción rápida",
 ]
 
 ALL_GROUP_VALUES = ["fun", "perspectives", "harmony", "emo", "quality", "deep"]
@@ -65,6 +54,15 @@ def preferences_to_vector(preferences: dict[str, Any]) -> list[float]:
 
     for a in (preferences.get("favorite_authors") or []):
         signals.add(normalize_tag(str(a)))
+
+    # preferred_languages
+    for lang in (preferences.get("preferred_languages") or []):
+        signals.add(normalize_tag(str(lang)))
+    # preferred_complexity (mapear a depth)
+    complexity_map = {"baja": "light", "media": "balanced", "alta": "deep"}
+    for c in (preferences.get("preferred_complexity") or []):
+        mapped = complexity_map.get(normalize_tag(str(c)), normalize_tag(str(c)))
+        signals.add(mapped)
 
     tag_vec = [
         1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
@@ -102,13 +100,23 @@ def book_to_vector(book: dict[str, Any]) -> list[float]:
     for t in raw_tags:
         signals.add(normalize_tag(str(t)))
 
+    raw_idiomas = book.get("idiomas") or ""
+    for lang in raw_idiomas.split(";"):
+        lang_clean = normalize_tag(lang)
+        if lang_clean:
+            signals.add(lang_clean)
+
     tag_vec = [
         1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
         for tag in ALL_TAGS
     ]
 
-    raw_complexity = str(book.get("complejidad_narrativa") or "medium").lower().strip()
-    complexity = {"low": 0.25, "medium": 0.5, "high": 1.0}.get(raw_complexity, 0.5)
+    raw_complexity = str(book.get("complejidad_narrativa") or "media").lower().strip()
+    depth_val = {
+        "baja": 0.25, "low": 0.25,
+        "media": 0.5,  "medium": 0.5,
+        "alta": 1.0,   "high": 1.0,
+    }.get(raw_complexity, 0.5)
 
     popularity = float(book.get("popularity_score") or 0.1)
     popularity = max(0.0, min(1.0, popularity))
@@ -119,7 +127,7 @@ def book_to_vector(book: dict[str, Any]) -> list[float]:
         if isinstance(prebuilt, list) and len(prebuilt) == len(ALL_TAGS) + 2:
             return [float(v) for v in prebuilt]
 
-    return [*tag_vec, complexity, popularity]
+    return [*tag_vec, depth_val, popularity]
 
 
 def aggregate_scores(scores: list[float], metodo: str) -> float:

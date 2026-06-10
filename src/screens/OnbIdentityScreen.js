@@ -28,18 +28,21 @@ const STORIES = [
 ];
 
 const GENRES = [
-  { id: "lit", label: "Literary", color: colors.purple },
-  { id: "fan", label: "Fantasy", color: colors.lime },
-  { id: "sci", label: "Sci-Fi", color: colors.coral },
-  { id: "mys", label: "Mystery", color: colors.lavender },
-  { id: "rom", label: "Romance", color: colors.cream },
-  { id: "mem", label: "Memoir", color: colors.white },
-  { id: "his", label: "History", color: colors.purple },
-  { id: "hor", label: "Horror", color: colors.coral },
-  { id: "ess", label: "Essays", color: colors.lime },
-  { id: "poe", label: "Poetry", color: colors.lavender },
-  { id: "cli", label: "Climate", color: colors.white },
-  { id: "pol", label: "Politics", color: colors.cream },
+  { id: "fan",  label: "Fantasía",          color: colors.lime },
+  { id: "rom",  label: "Romance",           color: colors.coral },
+  { id: "thr",  label: "Thriller",          color: colors.purple },
+  { id: "sci",  label: "Ciencia ficción",   color: colors.lavender },
+  { id: "cla",  label: "Clásico",           color: colors.ink, dark: true },
+  { id: "dis",  label: "Distopía",          color: colors.violet },
+  { id: "fic",  label: "Ficción",           color: colors.cream, outline: true },
+  { id: "nof",  label: "No ficción",        color: colors.white, outline: true },
+  { id: "ter",  label: "Terror",            color: colors.ink, dark: true },
+  { id: "mis",  label: "Misterio",          color: colors.lavender },
+  { id: "jov",  label: "Juvenil",           color: colors.lime },
+  { id: "man",  label: "Manga",             color: colors.coral },
+  { id: "rom2", label: "Romantasy",         color: colors.purple },
+  { id: "neg",  label: "Negocios",          color: colors.cream, outline: true },
+  { id: "tec",  label: "Tecnología",        color: colors.lavender },
 ];
 
 const AVATAR_PALETTE = [colors.purple, colors.lime, colors.coral, colors.lavender, "#7C5BFF", colors.ink];

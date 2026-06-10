@@ -168,13 +168,13 @@ export function OnbBehaviorScreen({ navigation }) {
         const alreadyKeys = new Set(topBooks.map((b) => b.ol_key));
         const { data } = await supabase
           .from("books")
-          .select("id, nombre_libro, autor, genero, ol_key")
-          .or(`nombre_libro.ilike.%${bookQuery}%,autor.ilike.%${bookQuery}%`)
+          .select("id, nombre_libro, autor, genero, complejidad_narrativa, cover_url")
+          .or(`nombre_libro.ilike.%${bookQuery.trim()}%,autor.ilike.%${bookQuery.trim()}%`)
           .limit(8);
         const results = (data ?? [])
-          .filter((row) => !alreadyKeys.has(row.ol_key ?? String(row.id)))
+          .filter((row) => !alreadyKeys.has(String(row.id)))
           .map((row) => ({
-            ol_key: row.ol_key ?? String(row.id),
+            ol_key: String(row.id),
             title: row.nombre_libro,
             author: row.autor,
             genre: row.genero,

@@ -44,7 +44,7 @@ class SupabaseRepository:
 
             preferences_response = (
                 self.client.table("user_preferences")
-                .select("user_id, favorite_genres, narrative_styles, group_values, depth_preference, openness_score, favorite_authors")
+                .select("user_id, favorite_genres, narrative_styles, group_values, depth_preference, openness_score, favorite_authors, preferred_languages, preferred_complexity")
                 .in_("user_id", user_ids)
                 .execute()
             )
@@ -69,7 +69,7 @@ class SupabaseRepository:
                 .select(
                     "id, nombre_libro, autor, genero, "
                     "complejidad_narrativa, trope, tags, "
-                    "popularity_score, content_vector"
+                    "popularity_score, content_vector, idiomas"
                 )
                 .limit(limit)
                 .execute()
