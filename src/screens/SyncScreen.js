@@ -97,7 +97,7 @@ export function SyncScreen({ navigation }) {
         <Pressable onPress={() => null} style={styles.actionGhost}>
           <Text style={styles.actionGhostText}>↻ Force resync</Text>
         </Pressable>
-        <Pressable onPress={() => navigation.navigate(routes.Telegram)} style={styles.actionPrimary}>
+        <Pressable onPress={() => null} style={styles.actionPrimary}>
           <Text style={styles.actionPrimaryText}>Open channel ↗</Text>
         </Pressable>
       </View>

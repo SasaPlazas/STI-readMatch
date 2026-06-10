@@ -47,6 +47,27 @@ const VALUE_OPTIONS = [
   { id: "fun", label: "Fast & fun", color: colors.cream, outline: true },
 ];
 
+const LANGUAGE_OPTIONS = [
+  { id: "es", label: "Español" },
+  { id: "en", label: "Inglés" },
+  { id: "fr", label: "Francés" },
+  { id: "pt", label: "Portugués" },
+  { id: "de", label: "Alemán" },
+  { id: "jp", label: "Japonés" },
+  { id: "it", label: "Italiano" },
+];
+
+const CONTENT_OPTIONS = [
+  { id: "all",    label: "Para todos los públicos" },
+  { id: "inc_18", label: "Incluir contenido +18"  },
+];
+
+const COMPLEXITY_OPTIONS = [
+  { id: "Baja",  label: "Baja",  sub: "accesible, fluido",  icon: "☼" },
+  { id: "Media", label: "Media", sub: "algo de estructura",  icon: "◐" },
+  { id: "Alta",  label: "Alta",  sub: "denso, retador",      icon: "◓" },
+];
+
 function getOpennessLabel(v) {
   if (v < 30) return '"I know what I like"';
   if (v < 60) return '"surprise me carefully"';
@@ -61,6 +82,11 @@ export function OnbPersonalityScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const savingRef = useRef(false);
+  const [preferredComplexity, setPreferredComplexity] = useState([]);
+  const [selectedLangs, setSelectedLangs] = useState(new Set(["es", "en"]));
+  const [contentPref, setContentPref]     = useState("all");
+
+  const canContinue = !saving && selectedLangs.size >= 1;
 
   const sliderWidth = useRef(0);
   const panResponder = useRef(
@@ -97,14 +123,29 @@ export function OnbPersonalityScreen({ navigation }) {
     });
   }
 
+  function toggleComplexity(id) {
+    setPreferredComplexity((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+    );
+  }
+
+  function toggleLang(id) {
+    setSelectedLangs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id) && next.size > 1) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   return (
     <Screen
       backgroundColor={colors.cream}
       footer={
         <RMButton
           title={saving ? "Saving…" : "Continue · Find your circle"}
-          variant={!saving ? "dark" : "ghost"}
-          disabled={saving}
+          variant={canContinue ? "dark" : "ghost"}
+          disabled={!canContinue}
           onPress={async () => {
             if (savingRef.current) return;
             savingRef.current = true;
@@ -117,12 +158,18 @@ export function OnbPersonalityScreen({ navigation }) {
                 depth_preference: depth,
                 openness_score: openness,
                 group_values: Array.from(values),
+                preferred_languages: Array.from(selectedLangs).map(
+                  (id) => LANGUAGE_OPTIONS.find((l) => l.id === id)?.label ?? id
+                ),
+                preferred_complexity: preferredComplexity,
+                content_preferences: [contentPref],
               });
 
               // Non-critical: insert weights for recommendation engine
               const weights = [
                 { category: "depth", item: depth, score: 1 },
                 { category: "openness", item: "discovery", score: openness / 100 },
+                { category: "language", item: Array.from(selectedLangs).join(","), score: 1 },
                 ...Array.from(values).map((id) => ({
                   category: "collab_value",
                   item: id,
@@ -321,6 +368,92 @@ export function OnbPersonalityScreen({ navigation }) {
           })}
         </View>
       </View>
+      {/* Q4 — Complejidad narrativa */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Complejidad narrativa que prefieres</Text>
+        <Text style={styles.sectionHint}>OPCIONAL · FILTRA POR DIFICULTAD</Text>
+        <View style={styles.valueChips}>
+          {COMPLEXITY_OPTIONS.map((o) => {
+            const on = preferredComplexity.includes(o.id);
+            return (
+              <Pressable
+                key={o.id}
+                onPress={() => toggleComplexity(o.id)}
+                style={[
+                  styles.valueChip,
+                  on && { backgroundColor: colors.lavender, borderColor: colors.ink, borderWidth: 1.5 },
+                ]}
+              >
+                <Text style={styles.valueChipText}>{o.icon} {o.label}</Text>
+                <Text style={styles.complexitySub}>{o.sub}</Text>
+                {on && (
+                  <View style={[styles.checkSmall, { backgroundColor: colors.ink }]}>
+                    <Text style={[styles.checkSmallText, { color: colors.lavender }]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Q5 — Idiomas */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Idiomas en los que lees</Text>
+        <Text style={styles.sectionHint}>MÍNIMO 1 PARA CONTINUAR</Text>
+        <View style={styles.valueChips}>
+          {LANGUAGE_OPTIONS.map((l) => {
+            const on = selectedLangs.has(l.id);
+            return (
+              <Pressable
+                key={l.id}
+                onPress={() => toggleLang(l.id)}
+                style={[
+                  styles.valueChip,
+                  on && { backgroundColor: colors.lime, borderColor: colors.ink, borderWidth: 1.5 },
+                ]}
+              >
+                <Text style={styles.valueChipText}>{l.label}</Text>
+                {on && (
+                  <View style={[styles.checkSmall, { backgroundColor: colors.ink }]}>
+                    <Text style={[styles.checkSmallText, { color: colors.lime }]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* Q6 — Contenido */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Preferencias de contenido</Text>
+        <Text style={styles.sectionHint}>AFECTA LAS RECOMENDACIONES</Text>
+        <View style={styles.valueChips}>
+          {CONTENT_OPTIONS.map((c) => {
+            const on = contentPref === c.id;
+            return (
+              <Pressable
+                key={c.id}
+                onPress={() => setContentPref(c.id)}
+                style={[
+                  styles.valueChip,
+                  on && { backgroundColor: colors.coral, borderColor: colors.ink, borderWidth: 1.5 },
+                ]}
+              >
+                <Text style={[styles.valueChipText, on && { color: colors.cream }]}>{c.label}</Text>
+                {on && (
+                  <View style={[styles.checkSmall, { backgroundColor: colors.ink }]}>
+                    <Text style={[styles.checkSmallText, { color: colors.coral }]}>✓</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.contentNote}>El contenido +18 incluye escenas explícitas</Text>
+      </View>
+
     </Screen>
   );
 }
@@ -553,4 +686,18 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   footer: { position: "absolute", left: 22, right: 22, bottom: 26 },
+  complexitySub: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "rgba(22,16,46,0.5)",
+    letterSpacing: 0.2,
+    marginTop: 1,
+  },
+  contentNote: {
+    marginTop: 8,
+    fontSize: 11,
+    fontWeight: "600",
+    color: "rgba(22,16,46,0.4)",
+    fontStyle: "italic",
+  },
 });

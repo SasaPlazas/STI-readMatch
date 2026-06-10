@@ -10,9 +10,7 @@ export const routes = {
   Home: 'Home',
   Book: 'Book',
   Explain: 'Explain',
-  Notifications: 'Notifications',
   Personality: 'Personality',
-  Telegram: 'Telegram',
   CreateGroup: 'CreateGroup',
   JoinGroup: 'JoinGroup',
   GroupDetail: 'GroupDetail',
@@ -20,7 +18,6 @@ export const routes = {
   Invite: 'Invite',
   GroupSettings: 'GroupSettings',
   Sync: 'Sync',
-  AllScreens: 'AllScreens',
 };
 
 export const routeOrder = [
@@ -35,9 +32,7 @@ export const routeOrder = [
   routes.Home,
   routes.Book,
   routes.Explain,
-  routes.Notifications,
   routes.Personality,
-  routes.Telegram,
   routes.CreateGroup,
   routes.JoinGroup,
   routes.Invite,

@@ -56,7 +56,7 @@ export function InviteScreen({ navigation }) {
         </View>
         <View style={styles.shareRow}>
           {['Telegram', 'QR code', 'SMS'].map((s) => (
-            <Pressable key={s} style={styles.shareBtn} onPress={() => (s === 'Telegram' ? navigation.navigate(routes.Telegram) : null)}>
+            <Pressable key={s} style={styles.shareBtn} onPress={() => null}>
               <Text style={styles.shareText}>{s}</Text>
             </Pressable>
           ))}

@@ -12,7 +12,7 @@ class RecommendationRequest(BaseModel):
 
 
 class RevealRequest(BaseModel):
-    archetype: str
+    archetype: Optional[str] = None
     preferences: dict[str, Any] = Field(default_factory=dict)
 
 

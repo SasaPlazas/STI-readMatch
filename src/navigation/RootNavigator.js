@@ -14,7 +14,6 @@ import { OnbCollabScreen } from '../screens/OnbCollabScreen';
 import { OnbRevealScreen } from '../screens/OnbRevealScreen';
 
 // App screens
-import { AllScreensScreen } from '../screens/AllScreensScreen';
 import { BookScreen } from '../screens/BookScreen';
 import { CreateGroupScreen } from '../screens/CreateGroupScreen';
 import { ExplainScreen } from '../screens/ExplainScreen';
@@ -26,8 +25,6 @@ import { GroupPreviewScreen } from '../screens/GroupPreviewScreen';
 import { JoinGroupScreen } from '../screens/JoinGroupScreen';
 import { PersonalityScreen } from '../screens/PersonalityScreen';
 import { SyncScreen } from '../screens/SyncScreen';
-import { TelegramScreen } from '../screens/TelegramScreen';
-import { NotificationsScreen } from '../screens/NotificationsScreen';
 
 const Stack = createNativeStackNavigator();
 const NO_HEADER = { headerShown: false };
@@ -54,7 +51,6 @@ function AppStack() {
       <Stack.Screen name={routes.Book}           component={BookScreen} />
       <Stack.Screen name={routes.Explain}        component={ExplainScreen} />
       <Stack.Screen name={routes.Personality}    component={PersonalityScreen} />
-      <Stack.Screen name={routes.Telegram}       component={TelegramScreen} />
       <Stack.Screen name={routes.CreateGroup}    component={CreateGroupScreen} />
       <Stack.Screen name={routes.JoinGroup}       component={JoinGroupScreen} />
       <Stack.Screen name={routes.GroupDetail}      component={GroupDetailScreen} />
@@ -62,8 +58,6 @@ function AppStack() {
       <Stack.Screen name={routes.Invite}         component={InviteScreen} />
       <Stack.Screen name={routes.GroupSettings}  component={GroupSettingsScreen} />
       <Stack.Screen name={routes.Sync}           component={SyncScreen} />
-      <Stack.Screen name={routes.Notifications}   component={NotificationsScreen} />
-      <Stack.Screen name={routes.AllScreens}     component={AllScreensScreen} />
     </Stack.Navigator>
   );
 }

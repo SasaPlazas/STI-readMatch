@@ -6,23 +6,34 @@ from typing import Any
 
 
 ALL_TAGS = [
-    "literary",
-    "sci-fi",
-    "fantasy",
-    "mystery",
-    "romance",
-    "memoir",
-    "essays",
-    "history",
-    "horror",
-    "poetry",
-    "climate",
-    "politics",
-    "dark",
-    "thriller",
-    "nonfiction",
-    "slice-of-life",
+    # Géneros en español (valores exactos de la columna `genero`)
+    "fantasía", "romance", "thriller", "ciencia ficción", "clásico",
+    "distopía", "ficción", "no ficción", "terror", "misterio",
+    "juvenil", "manga", "romantasy", "fantasía romántica",
+    "negocios", "tecnología",
+    # Tropos en español (valores exactos de la columna `trope`)
+    "enemies to lovers", "redención", "intriga política", "viaje del héroe",
+    "supervivencia", "detective brillante", "academia militar",
+    "narrador poco fiable", "elegida especial", "battle royale",
+    "fake dating", "historia humana", "sociedad controlada",
+    "finanzas personales", "opposites attract", "matrimonio tóxico",
+    "culpa y redención", "competencia mortal", "innovación",
+    "casa embrujada", "buenas prácticas", "elegido", "rivales a amantes",
+    "conspiración", "mundo virtual", "vigilancia total", "whodunit",
+    "imperio en caída", "mesías reacio", "batalla intelectual",
+    "amor prohibido", "realismo mágico", "narrador inusual",
+    "coming of age", "última humanidad", "caballero errante",
+    "guardiana secreta", "beauty and the beast", "mal ancestral",
+    "rebelión", "genio incomprendido",
 ]
+
+ALL_STYLES = [
+    "enemies to lovers", "redención", "intriga política",
+    "viaje del héroe", "supervivencia", "detective brillante",
+    "academia militar", "narrador poco fiable",
+]
+
+ALL_GROUP_VALUES = ["fun", "perspectives", "harmony", "emo", "quality", "deep"]
 
 
 def normalize_tag(value: str) -> str:
@@ -39,32 +50,92 @@ def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
 
 
 def preferences_to_vector(preferences: dict[str, Any]) -> list[float]:
-    tags = preferences.get("favorite_genres") or preferences.get("tags") or []
-    normalized_tags = [normalize_tag(str(tag)) for tag in tags]
+    signals: set[str] = set()
 
-    tag_vec = [1.0 if any(tag in normalized for normalized in normalized_tags) else 0.0 for tag in ALL_TAGS]
+    for g in (preferences.get("favorite_genres") or []):
+        signals.add(normalize_tag(str(g)))
 
-    depth_preference = str(preferences.get("depth_preference", "balanced")).lower()
+    for s in (preferences.get("narrative_styles") or []):
+        signals.add(normalize_tag(str(s)))
+
+    for v in (preferences.get("group_values") or []):
+        signals.add(normalize_tag(str(v)))
+
+    for a in (preferences.get("favorite_authors") or []):
+        signals.add(normalize_tag(str(a)))
+
+    # preferred_languages
+    for lang in (preferences.get("preferred_languages") or []):
+        signals.add(normalize_tag(str(lang)))
+    # preferred_complexity (mapear a depth)
+    complexity_map = {"baja": "light", "media": "balanced", "alta": "deep"}
+    for c in (preferences.get("preferred_complexity") or []):
+        mapped = complexity_map.get(normalize_tag(str(c)), normalize_tag(str(c)))
+        signals.add(mapped)
+
+    tag_vec = [
+        1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
+        for tag in ALL_TAGS
+    ]
+
+    depth_preference = str(preferences.get("depth_preference") or "balanced").lower().strip()
     depth = {
         "light": 0.25,
         "balanced": 0.5,
         "deep": 1.0,
         "experimental": 0.9,
     }.get(depth_preference, 0.5)
-    openness = float(preferences.get("openness_score", 60) or 60) / 100.0
+
+    openness = float(preferences.get("openness_score") or 60) / 100.0
+    openness = max(0.0, min(1.0, openness))
 
     return [*tag_vec, depth, openness]
 
 
 def book_to_vector(book: dict[str, Any]) -> list[float]:
-    genre = normalize_tag(str(book.get("genero") or book.get("genre") or ""))
-    tag_vec = [1.0 if tag in genre else 0.0 for tag in ALL_TAGS]
-    complexity = {
-        "low": 0.25,
-        "medium": 0.5,
-        "high": 1.0,
-    }.get(str(book.get("complexity", "medium")).lower(), 0.5)
-    return [*tag_vec, complexity, 0.5]
+    signals: set[str] = set()
+
+    raw_genre = book.get("genero") or ""
+    if raw_genre:
+        signals.add(normalize_tag(str(raw_genre)))
+
+    raw_trope = book.get("trope") or ""
+    if raw_trope:
+        signals.add(normalize_tag(str(raw_trope)))
+
+    raw_tags = book.get("tags") or []
+    if isinstance(raw_tags, str):
+        raw_tags = [t.strip() for t in raw_tags.replace("{", "").replace("}", "").split(",") if t.strip()]
+    for t in raw_tags:
+        signals.add(normalize_tag(str(t)))
+
+    raw_idiomas = book.get("idiomas") or ""
+    for lang in raw_idiomas.split(";"):
+        lang_clean = normalize_tag(lang)
+        if lang_clean:
+            signals.add(lang_clean)
+
+    tag_vec = [
+        1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
+        for tag in ALL_TAGS
+    ]
+
+    depth_val = {
+        "baja": 0.25, "low": 0.25,
+        "media": 0.5, "medium": 0.5,
+        "alta": 1.0, "high": 1.0,
+    }.get((book.get("complejidad_narrativa") or "").strip().lower(), 0.5)
+
+    popularity = float(book.get("popularity_score") or 0.1)
+    popularity = max(0.0, min(1.0, popularity))
+
+    content_vec = book.get("content_vector")
+    if isinstance(content_vec, dict):
+        prebuilt = content_vec.get("vector")
+        if isinstance(prebuilt, list) and len(prebuilt) == len(ALL_TAGS) + 2:
+            return [float(v) for v in prebuilt]
+
+    return [*tag_vec, depth_val, popularity]
 
 
 def aggregate_scores(scores: list[float], metodo: str) -> float:
@@ -83,6 +154,52 @@ def aggregate_scores(scores: list[float], metodo: str) -> float:
     variance = sum((item - score_mean) ** 2 for item in scores) / len(scores)
     sigma = math.sqrt(variance)
     return score_mean * (1 - sigma)
+
+
+def build_per_member_scores(members: list[dict[str, Any]], scores: list[float]) -> list[dict[str, Any]]:
+    return [
+        {
+            "user_id": member.get("user_id"),
+            "role": member.get("role"),
+            "score": round(score, 6),
+        }
+        for member, score in zip(members, scores)
+    ]
+
+
+def compute_member_coverage(scores: list[float], threshold: float = 0.4) -> float:
+    if not scores:
+        return 0.0
+    covered = sum(1 for score in scores if score >= threshold)
+    return covered / len(scores)
+
+
+def build_stats(members: list[dict[str, Any]], scores: list[float], final_score: float) -> dict[str, Any]:
+    if not scores:
+        return {
+            "content_score": 0.0,
+            "collaborative_score": 0.0,
+            "popularity_score": 0.5,
+            "fairness_score": 0.0,
+            "member_coverage": 0.0,
+            "per_member_scores": [],
+        }
+
+    score_mean = mean(scores)
+    polarization = max(scores) - min(scores)
+    fairness_score = max(0.0, 1.0 - polarization)
+    member_coverage = compute_member_coverage(scores)
+
+    return {
+        "content_score": score_mean,
+        # This is the group-level score after aggregating member preferences.
+        "collaborative_score": final_score,
+        # Neutral baseline until popularity signals (votes/clicks) exist.
+        "popularity_score": 0.5,
+        "fairness_score": fairness_score,
+        "member_coverage": member_coverage,
+        "per_member_scores": build_per_member_scores(members, scores),
+    }
 
 
 def build_explanation(scores: list[float], metodo: str) -> dict[str, Any]:
@@ -129,6 +246,7 @@ def score_group_books(
             member_scores.append(cosine_similarity(user_vec, book_vec))
 
         final_score = aggregate_scores(member_scores, metodo)
+        stats = build_stats(members, member_scores, final_score)
         explanation = build_explanation(member_scores, metodo)
 
         scored.append(
@@ -137,6 +255,7 @@ def score_group_books(
                 "book_id": book["id"],
                 "rank": 0,
                 "final_score": final_score,
+                **stats,
                 "explanation": explanation,
             }
         )

@@ -1,3 +1,6 @@
+// SQL migration needed in Supabase dashboard:
+// ALTER TABLE recommendation_groups ADD COLUMN IF NOT EXISTS join_code text UNIQUE;
+
 import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 
@@ -35,15 +38,6 @@ export async function upsertUserPreferences(values) {
 
 export async function upsertBooks(books) {
   if (!books?.length) return;
-  const skipKey = "rm_skip_books_upsert";
-  try {
-    if (
-      typeof window !== "undefined" &&
-      window.localStorage?.getItem(skipKey) === "1"
-    ) {
-      return;
-    }
-  } catch (_) {}
   const rows = books.map((b) => ({
     ol_key: b.ol_key,
     nombre_libro: b.title,
@@ -54,14 +48,7 @@ export async function upsertBooks(books) {
   const { error } = await supabase
     .from("books")
     .upsert(rows, { onConflict: "ol_key" });
-  if (error) {
-    try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(skipKey, "1");
-      }
-    } catch (_) {}
-    throw error;
-  }
+  if (error) throw error;
 }
 
 export async function createGroupWithMembers({
@@ -70,6 +57,8 @@ export async function createGroupWithMembers({
   tgOn,
   friendUserIds,
 }) {
+  const joinCode = 'RM-' + Math.random().toString(36).slice(2, 6).toUpperCase();
+
   const { data: groupId, error } = await supabase.rpc(
     "create_group_with_admin",
     {
@@ -79,6 +68,8 @@ export async function createGroupWithMembers({
     },
   );
   if (error) throw error;
+
+  await supabase.from("recommendation_groups").update({ join_code: joinCode }).eq("id", groupId);
   if (friendUserIds?.length) {
     const { error: membErr } = await supabase.from("group_members").insert(
       friendUserIds.map((uid) => ({
@@ -90,31 +81,39 @@ export async function createGroupWithMembers({
     );
     if (membErr) throw membErr;
   }
-  return groupId;
+  let recommendationsTriggered = false;
+  let recommendationsError = null;
+  try {
+    await triggerGroupRecommendations(groupId);
+    recommendationsTriggered = true;
+  } catch (e) {
+    recommendationsError = e?.message ?? 'FastAPI unavailable';
+  }
+  return { groupId, joinCode, recommendationsTriggered, recommendationsError };
 }
 
-export async function joinGroupByLink(rawLink) {
-  const match = rawLink
-    .trim()
-    .match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i);
-  if (!match) throw new Error("Link inválido — pega el link completo");
-  const groupId = match[1];
+export async function joinGroupByCode(code) {
+  const trimmed = code.trim().toUpperCase();
   const { data, error } = await supabase
     .from("recommendation_groups")
     .select("id, group_name")
-    .eq("id", groupId)
+    .eq("join_code", trimmed)
     .eq("is_active", true)
-    .single();
-  if (error || !data) throw new Error("Grupo no encontrado o inactivo");
+    .maybeSingle();
+  if (error || !data) throw new Error("Código inválido o grupo no encontrado");
   const userId = await getAuthedUserId();
   const { error: joinErr } = await supabase.from("group_members").insert({
-    group_id: groupId,
+    group_id: data.id,
     user_id: userId,
     role: "member",
     influence_weight: 1.0,
   });
-  if (joinErr) throw joinErr;
-  return { groupId, groupName: data.group_name };
+  if (joinErr) {
+    if (joinErr.code === "23505") throw new Error("Ya eres miembro de este grupo");
+    throw joinErr;
+  }
+  try { await triggerGroupRecommendations(data.id); } catch {}
+  return { groupId: data.id, groupName: data.group_name };
 }
 
 export async function insertUserWeights(weights) {
@@ -136,5 +135,6 @@ export async function triggerGroupRecommendations(
       group_id: groupId,
       metodo,
     }),
+    timeoutMs: 45000,
   });
 }

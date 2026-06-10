@@ -1,271 +1,432 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
-import { Avatar } from '../components/Avatar';
-import { RMButton } from '../components/RMButton';
-import { joinGroupByLink } from '../utils/userStorage';
-import { DISCOVERABLE_GROUPS, MEMBERS } from '../data/sample';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
+import { joinGroupByCode, triggerGroupRecommendations } from '../utils/userStorage';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 
+const BADGE_COLORS = [
+  colors.purple,
+  colors.coral,
+  colors.lavender,
+  colors.violet,
+  colors.lime,
+  '#E8E0FF',
+];
+
+function strHash(s = '') {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
+function groupInitials(name = '') {
+  return (
+    name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase() || '?'
+  );
+}
+function badgeColor(id = '') {
+  return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
+}
+
+function GroupResultCard({ group, onPress, onJoin, joining }) {
+  const vibes = Array.isArray(group.vibe) ? group.vibe : [];
+  const bg = badgeColor(group.id);
+  const darkBg = bg === colors.purple || bg === colors.violet;
+
+  return (
+    <Pressable onPress={onPress} style={styles.card}>
+      <View style={[styles.cardBadge, { backgroundColor: bg }]}>
+        <Text style={[styles.cardBadgeText, darkBg && { color: colors.cream }]}>
+          {groupInitials(group.group_name)}
+        </Text>
+      </View>
+
+      <View style={styles.cardInfo}>
+        <Text style={styles.cardName} numberOfLines={1}>{group.group_name}</Text>
+        {vibes.length > 0 && (
+          <View style={styles.vibeRow}>
+            {vibes.slice(0, 3).map((v) => (
+              <View key={v} style={styles.vibePill}>
+                <Text style={styles.vibePillText}>{v}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </View>
+
+      <Pressable
+        onPress={onJoin}
+        disabled={joining}
+        style={[styles.joinCardBtn, joining && styles.joinCardBtnDisabled]}
+      >
+        {joining ? (
+          <ActivityIndicator size="small" color={colors.cream} />
+        ) : (
+          <Text style={styles.joinCardBtnText}>Unirse</Text>
+        )}
+      </Pressable>
+    </Pressable>
+  );
+}
+
 export function JoinGroupScreen({ navigation }) {
-  const [deepLink, setDeepLink] = useState('');
+  const { user } = useAuth();
+  const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(true);
+  const [joiningId, setJoiningId] = useState(null);
+
+  const [showCodeSection, setShowCodeSection] = useState(false);
+  const [code, setCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
   const [joinSuccess, setJoinSuccess] = useState(null);
 
-  const [code, setCode] = useState('');
-  const [found, setFound] = useState(null);
-  const [searching, setSearching] = useState(false);
-  const [codeError, setCodeError] = useState('');
+  useEffect(() => {
+    if (!user?.id) return;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        let q = supabase
+          .from('recommendation_groups')
+          .select('id, group_name, vibe, join_code')
+          .neq('created_by', user.id);
 
-  const onJoinByLink = async () => {
-    if (!deepLink.trim() || joining) return;
+        if (query.trim().length > 0) {
+          q = q.ilike('group_name', `%${query.trim()}%`).limit(20);
+        } else {
+          q = q.order('created_at', { ascending: false }).limit(15);
+        }
+
+        const { data } = await q;
+        setSearchResults(data ?? []);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [query, user?.id]);
+
+  const onJoinFromSearch = async (group) => {
+    setJoiningId(group.id);
+    try {
+      const { error: joinErr } = await supabase.from('group_members').insert({
+        group_id: group.id,
+        user_id: user.id,
+        role: 'member',
+        influence_weight: 1.0,
+      });
+      if (joinErr) {
+        if (joinErr.code === '23505') throw new Error('Ya eres miembro de este grupo');
+        throw joinErr;
+      }
+      try { await triggerGroupRecommendations(group.id); } catch {}
+      navigation.navigate(routes.GroupDetail, { groupId: group.id });
+    } catch (e) {
+      Alert.alert('No se pudo unir', e?.message || 'Inténtalo de nuevo');
+    } finally {
+      setJoiningId(null);
+    }
+  };
+
+  const onJoinByCode = async () => {
+    if (code.trim().length < 4 || joining) return;
     setJoining(true);
     setJoinError('');
     setJoinSuccess(null);
     try {
-      const result = await joinGroupByLink(deepLink);
-      setJoinSuccess(result.groupName ?? 'tu círculo');
-      setDeepLink('');
+      const result = await joinGroupByCode(code);
+      setJoinSuccess(result);
+      setCode('');
     } catch (e) {
-      setJoinError(e?.message || 'No se pudo unir al grupo');
+      setJoinError(e?.message || 'Código no encontrado');
     } finally {
       setJoining(false);
     }
   };
 
-  function handleSearch() {
-    const trimmed = code.trim().toUpperCase();
-    if (trimmed.length < 4) { setCodeError('Enter at least 4 characters'); return; }
-    setCodeError('');
-    setSearching(true);
-    setTimeout(() => {
-      const match = DISCOVERABLE_GROUPS.find((g) => g.code === trimmed);
-      setSearching(false);
-      if (match) { setFound(match); }
-      else { setCodeError('No group found with that code. Check and try again.'); setFound(null); }
-    }, 900);
-  }
-
   return (
-    <Screen
-      backgroundColor={colors.cream}
-      footer={
-        found ? (
-          <RMButton
-            title="Ver perfil del grupo →"
-            variant="dark"
-            onPress={() => navigation.navigate(routes.GroupPreview, { groupId: found.id })}
-          />
-        ) : null
-      }
-    >
+    <Screen backgroundColor={colors.cream}>
       <TopBar title="Unirse a un círculo" onBack={() => navigation.goBack()} />
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
-      <View style={styles.header}>
-        <Text style={styles.kicker}>★ Find your people</Text>
-        <Text style={styles.title}>
-          Join a reading{'\n'}
-          <Text style={styles.titleItalic}>circle</Text>
-        </Text>
-      </View>
-
-      {/* Deep link join */}
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>GOT A LINK</Text>
-        <Text style={styles.cardTitle}>Paste your invite link</Text>
-        <View style={styles.linkRow}>
-          <TextInput
-            value={deepLink}
-            onChangeText={(v) => { setDeepLink(v); setJoinError(''); setJoinSuccess(null); }}
-            placeholder="readmatch://join/…"
-            placeholderTextColor="rgba(22,16,46,0.3)"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.linkInput}
-            onSubmitEditing={onJoinByLink}
-          />
-          {deepLink.length > 0 && (
-            <Pressable onPress={() => { setDeepLink(''); setJoinError(''); setJoinSuccess(null); }} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </Pressable>
-          )}
+        <View style={styles.header}>
+          <Text style={styles.kicker}>★ Find your people</Text>
+          <Text style={styles.title}>
+            Join a reading{'\n'}
+            <Text style={styles.titleItalic}>circle</Text>
+          </Text>
         </View>
-        {joinError ? <Text style={styles.errText}>{joinError}</Text> : null}
-        {joinSuccess ? (
-          <View style={styles.successBox}>
-            <Text style={styles.successText}>You joined {joinSuccess}! 🎉</Text>
-            <Pressable onPress={() => navigation.navigate(routes.Home)} style={styles.goHome}>
-              <Text style={styles.goHomeText}>Go to dashboard →</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            onPress={onJoinByLink}
-            disabled={!deepLink.trim() || joining}
-            style={[styles.joinBtn, (!deepLink.trim() || joining) && styles.joinBtnDisabled]}
-          >
-            <Text style={styles.joinBtnText}>{joining ? 'Joining…' : 'Join circle'}</Text>
-          </Pressable>
-        )}
-      </View>
 
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or search by code</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* Code input */}
-      <View style={styles.inputCard}>
-        <Text style={styles.inputLabel}>INVITE CODE</Text>
-        <View style={styles.inputRow}>
-          <TextInput
-            value={code}
-            onChangeText={(v) => { setCode(v.toUpperCase()); setFound(null); setCodeError(''); }}
-            placeholder="e.g. DR9981"
-            placeholderTextColor="rgba(22,16,46,0.3)"
-            autoCapitalize="characters"
-            autoCorrect={false}
-            maxLength={8}
-            style={styles.codeInput}
-            onSubmitEditing={handleSearch}
-          />
-          {code.length > 0 && (
-            <Pressable onPress={() => { setCode(''); setFound(null); setCodeError(''); }} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </Pressable>
-          )}
-        </View>
-        <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
-        {codeError ? <Text style={styles.errText}>{codeError}</Text> : null}
-        <Pressable
-          onPress={handleSearch}
-          disabled={code.length < 4 || searching}
-          style={[styles.joinBtn, (code.length < 4 || searching) && styles.joinBtnDisabled, { marginTop: 12 }]}
-        >
-          <Text style={styles.joinBtnText}>{searching ? 'Searching…' : 'Find group'}</Text>
-        </Pressable>
-      </View>
-
-      {found && (
-        <Pressable
-          onPress={() => navigation.navigate(routes.GroupPreview, { groupId: found.id })}
-          style={styles.foundCard}
-        >
-          <View style={[styles.foundBadge, { backgroundColor: found.color }]}>
-            <Text style={styles.foundBadgeText}>{found.initials}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.foundName}>{found.name}</Text>
-            <Text style={styles.foundMood}>{found.mood}</Text>
-            <View style={styles.foundMeta}>
-              <View style={styles.foundAvatars}>
-                {found.memberIds.slice(0, 3).map((id, i) => {
-                  const m = MEMBERS.find((mem) => mem.id === id);
-                  return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -8 }}><Avatar m={m} size={22} /></View> : null;
-                })}
-              </View>
-              <Text style={styles.foundMembers}>{found.memberIds.length} members · {found.pace}</Text>
+        {/* ── Search ── */}
+        <View style={styles.searchWrap}>
+          <View style={styles.searchRow}>
+            <View style={styles.searchIconWrap}>
+              <Text style={styles.searchIconText}>⌕</Text>
             </View>
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Search circles..."
+              placeholderTextColor="rgba(22,16,46,0.35)"
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+            />
+            {searching && <ActivityIndicator size="small" color={colors.purple} />}
           </View>
-          <View style={styles.previewBtn}>
-            <Text style={styles.previewBtnText}>Ver →</Text>
-          </View>
-        </Pressable>
-      )}
+        </View>
 
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or explore popular circles</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      <View style={styles.browseList}>
-        {DISCOVERABLE_GROUPS.map((g) => (
-          <Pressable key={g.id} onPress={() => navigation.navigate(routes.GroupPreview, { groupId: g.id })} style={styles.browseRow}>
-            <View style={[styles.browseBadge, { backgroundColor: g.color + '33' }]}>
-              <Text style={[styles.browseBadgeText, { color: g.color === colors.cream ? colors.ink : g.color }]}>
-                {g.initials}
+        {/* ── Results ── */}
+        <View style={styles.results}>
+          {searching ? null : searchResults.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>
+                {query.trim()
+                  ? 'Sin resultados para ese nombre'
+                  : 'No hay círculos públicos aún'}
               </Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.browseName}>{g.name}</Text>
-              <Text style={styles.browseMood}>{g.mood}</Text>
-              <Text style={styles.browsePace}>{g.pace}</Text>
+          ) : (
+            searchResults.map((group) => (
+              <GroupResultCard
+                key={group.id}
+                group={group}
+                joining={joiningId === group.id}
+                onPress={() => navigation.navigate(routes.GroupDetail, { groupId: group.id })}
+                onJoin={() => onJoinFromSearch(group)}
+              />
+            ))
+          )}
+        </View>
+
+        {/* ── Code toggle ── */}
+        <Pressable
+          onPress={() => setShowCodeSection((v) => !v)}
+          style={styles.codeToggle}
+        >
+          <Text style={styles.codeToggleText}>
+            {showCodeSection ? '▲' : '▼'}{' '}¿Tienes un código de invitación?
+          </Text>
+        </Pressable>
+
+        {/* ── Join by code ── */}
+        {showCodeSection && (
+          <View style={styles.inputCard}>
+            <Text style={styles.inputLabel}>CÓDIGO DEL GRUPO</Text>
+            <View style={styles.inputRow}>
+              <TextInput
+                value={code}
+                onChangeText={(v) => {
+                  setCode(v.toUpperCase());
+                  setJoinError('');
+                  setJoinSuccess(null);
+                }}
+                placeholder="ej. RM-A3F7"
+                placeholderTextColor="rgba(22,16,46,0.3)"
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={8}
+                style={styles.codeInput}
+                onSubmitEditing={onJoinByCode}
+              />
             </View>
-            <View style={styles.browseMeta}>
-              <View style={styles.browseAvatars}>
-                {g.memberIds.slice(0, 2).map((id, i) => {
-                  const m = MEMBERS.find((mem) => mem.id === id);
-                  return m ? <View key={id} style={{ marginLeft: i === 0 ? 0 : -6 }}><Avatar m={m} size={20} /></View> : null;
-                })}
+            <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
+            {joinError ? <Text style={styles.errText}>{joinError}</Text> : null}
+            {joinSuccess ? (
+              <View style={styles.successBox}>
+                <Text style={styles.successText}>¡Entraste a {joinSuccess.groupName}! 🎉</Text>
+                <Pressable
+                  onPress={() =>
+                    navigation.navigate(routes.GroupDetail, { groupId: joinSuccess.groupId })
+                  }
+                  style={styles.goHome}
+                >
+                  <Text style={styles.goHomeText}>Ir al grupo →</Text>
+                </Pressable>
               </View>
-              <Text style={styles.browseCount}>{g.memberIds.length} members</Text>
-              <View style={styles.browseArrow}>
-                <Text style={styles.browseArrowText}>›</Text>
-              </View>
-            </View>
-          </Pressable>
-        ))}
-      </View>
+            ) : (
+              <Pressable
+                onPress={onJoinByCode}
+                disabled={code.length < 6 || joining}
+                style={[
+                  styles.joinBtn,
+                  (code.length < 6 || joining) && styles.joinBtnDisabled,
+                  { marginTop: 12 },
+                ]}
+              >
+                {joining ? (
+                  <ActivityIndicator color={colors.cream} />
+                ) : (
+                  <Text style={styles.joinBtnText}>Unirse al círculo</Text>
+                )}
+              </Pressable>
+            )}
+          </View>
+        )}
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  scroll: { paddingBottom: 24 },
+
   header: { paddingHorizontal: 22, paddingBottom: 20 },
-  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: colors.purple, marginBottom: 8 },
+  kicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.purple,
+    marginBottom: 8,
+  },
   title: { fontSize: 38, fontWeight: '900', color: colors.ink, letterSpacing: -1, lineHeight: 40 },
   titleItalic: { fontStyle: 'italic', fontWeight: '400', color: colors.purple },
-  card: { marginHorizontal: 22, marginBottom: 12, backgroundColor: colors.white, borderRadius: radii.xl, padding: 16, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
-  cardLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1.6, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 4 },
-  cardTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3, marginBottom: 12 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: 'rgba(22,16,46,0.12)', marginBottom: 12 },
-  linkInput: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.ink, paddingVertical: 8, letterSpacing: 0.2 },
-  clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(22,16,46,0.08)', alignItems: 'center', justifyContent: 'center' },
-  clearText: { fontSize: 11, color: 'rgba(22,16,46,0.5)', fontWeight: '900' },
-  errText: { fontSize: 12, fontWeight: '700', color: colors.coral, marginBottom: 8 },
-  successBox: { backgroundColor: 'rgba(212,255,61,0.1)', borderRadius: radii.md, padding: 12, gap: 8 },
+
+  searchWrap: { paddingHorizontal: 22, marginBottom: 14 },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: radii.lg,
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.08)',
+  },
+  searchIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 9,
+    backgroundColor: 'rgba(22,16,46,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  searchIconText: { fontSize: 16, color: colors.ink },
+  searchInput: { flex: 1, fontSize: 15, fontWeight: '600', color: colors.ink },
+
+  results: { paddingHorizontal: 16, gap: 10 },
+  emptyState: { padding: 20, alignItems: 'center' },
+  emptyText: { fontSize: 13, fontWeight: '600', color: 'rgba(22,16,46,0.4)', textAlign: 'center' },
+
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: colors.white,
+    borderRadius: radii.lg,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.06)',
+  },
+  cardBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  cardBadgeText: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
+  cardInfo: { flex: 1, minWidth: 0 },
+  cardName: { fontSize: 15, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
+  vibeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 5 },
+  vibePill: {
+    borderRadius: radii.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: 'rgba(124,91,255,0.1)',
+  },
+  vibePillText: { fontSize: 10, fontWeight: '700', color: colors.purple },
+
+  joinCardBtn: {
+    borderRadius: radii.pill,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: colors.ink,
+    flexShrink: 0,
+    minWidth: 72,
+    alignItems: 'center',
+  },
+  joinCardBtnDisabled: { backgroundColor: 'rgba(22,16,46,0.2)' },
+  joinCardBtnText: { fontSize: 12, fontWeight: '900', color: colors.cream },
+
+  codeToggle: {
+    marginHorizontal: 22,
+    marginTop: 24,
+    marginBottom: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: radii.lg,
+    backgroundColor: 'rgba(22,16,46,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.08)',
+    alignItems: 'center',
+  },
+  codeToggleText: { fontSize: 13, fontWeight: '700', color: 'rgba(22,16,46,0.55)' },
+
+  inputCard: { marginHorizontal: 22, marginBottom: 12 },
+  inputLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: 'rgba(22,16,46,0.45)',
+    marginBottom: 10,
+  },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  codeInput: {
+    flex: 1,
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.ink,
+    letterSpacing: 4,
+    paddingVertical: 4,
+  },
+  codeUnderline: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(22,16,46,0.15)',
+    marginTop: 6,
+  },
+  codeUnderlineActive: { backgroundColor: colors.purple },
+  errText: { fontSize: 12, fontWeight: '700', color: colors.coral, marginTop: 8, marginBottom: 4 },
+  successBox: {
+    backgroundColor: 'rgba(212,255,61,0.1)',
+    borderRadius: radii.md,
+    padding: 12,
+    gap: 8,
+    marginTop: 12,
+  },
   successText: { fontSize: 13, fontWeight: '800', color: colors.ink },
   goHome: { alignSelf: 'flex-start' },
   goHomeText: { fontSize: 13, fontWeight: '800', color: colors.purple },
-  joinBtn: { borderRadius: radii.pill, paddingVertical: 12, paddingHorizontal: 20, backgroundColor: colors.ink, alignItems: 'center' },
+  joinBtn: {
+    borderRadius: radii.pill,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+  },
   joinBtnDisabled: { backgroundColor: 'rgba(22,16,46,0.2)' },
   joinBtnText: { fontSize: 14, fontWeight: '900', color: colors.cream },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 22, marginVertical: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(22,16,46,0.1)' },
-  dividerText: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', letterSpacing: 0.4 },
-  inputCard: { marginHorizontal: 22, marginBottom: 12 },
-  inputLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, color: 'rgba(22,16,46,0.45)', marginBottom: 10 },
-  inputRow: { flexDirection: 'row', alignItems: 'center' },
-  codeInput: { flex: 1, fontSize: 32, fontWeight: '900', color: colors.ink, letterSpacing: 4, paddingVertical: 4 },
-  codeUnderline: { height: 2, borderRadius: 1, backgroundColor: 'rgba(22,16,46,0.15)', marginTop: 6 },
-  codeUnderlineActive: { backgroundColor: colors.purple },
-  foundCard: { marginHorizontal: 22, marginBottom: 16, backgroundColor: colors.lime, borderRadius: radii.xl, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: colors.ink },
-  foundBadge: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  foundBadgeText: { color: colors.ink, fontWeight: '900', fontSize: 16, letterSpacing: -0.5 },
-  foundName: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
-  foundMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.65)', marginTop: 2 },
-  foundMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  foundAvatars: { flexDirection: 'row' },
-  foundMembers: { fontSize: 11, fontWeight: '800', color: 'rgba(22,16,46,0.7)' },
-  previewBtn: { borderRadius: radii.pill, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.ink },
-  previewBtnText: { color: colors.lime, fontWeight: '900', fontSize: 12 },
-  browseList: { paddingHorizontal: 22, gap: 10 },
-  browseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
-  browseBadge: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  browseBadgeText: { fontWeight: '900', fontSize: 15, letterSpacing: -0.3 },
-  browseName: { fontSize: 15, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
-  browseMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)', marginTop: 2 },
-  browsePace: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', marginTop: 2 },
-  browseMeta: { alignItems: 'flex-end', gap: 6 },
-  browseAvatars: { flexDirection: 'row' },
-  browseCount: { fontSize: 10, fontWeight: '800', color: 'rgba(22,16,46,0.45)' },
-  browseArrow: { width: 26, height: 26, borderRadius: 8, backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
-  browseArrowText: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
 });

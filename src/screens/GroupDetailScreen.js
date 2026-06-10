@@ -1,48 +1,73 @@
-import { triggerGroupRecommendations } from '../utils/userStorage';
-import { useEffect, useState } from 'react';
-import { Alert } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Screen } from '../components/Screen';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
-import { colors, radii } from '../theme/tokens';
-import { routes } from '../navigation/routes';
+import * as Clipboard from "expo-clipboard";
+import { triggerGroupRecommendations } from "../utils/userStorage";
+import { useCallback, useEffect, useState } from "react";
+import { Alert } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Screen } from "../components/Screen";
+import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
+import { colors, radii } from "../theme/tokens";
+import { routes } from "../navigation/routes";
 
 const BADGE_COLORS = [
-  colors.purple, colors.coral, colors.lavender,
-  colors.violet, colors.lime, '#E8E0FF',
+  colors.purple,
+  colors.coral,
+  colors.lavender,
+  colors.violet,
+  colors.lime,
+  "#E8E0FF",
 ];
 
-function strHash(s = '') {
+function strHash(s = "") {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
 }
-function groupInitials(name = '') {
-  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?';
+function groupInitials(name = "") {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0] ?? "")
+      .join("")
+      .toUpperCase() || "?"
+  );
 }
-function badgeColor(id = '') {
+function badgeColor(id = "") {
   return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
+}
+
+function toPct(value, decimals = 0) {
+  const n = Number(value) || 0;
+  const factor = 10 ** decimals;
+  return Math.round(n * 100 * factor) / factor;
 }
 
 function MemberCard({ member }) {
   const prefs = member.user_preferences ?? {};
-  const archetype = prefs.archetype ?? '';
-  const username = prefs.username ?? '';
-  const label = archetype || username || 'Member';
-  const initial = archetype?.[0]?.toUpperCase() ?? username?.[0]?.toUpperCase() ?? '?';
+  const archetype = prefs.archetype ?? "";
+  const username = prefs.username ?? "";
+  const label = username || archetype || "Member";
+  const initial =
+    archetype?.[0]?.toUpperCase() ?? username?.[0]?.toUpperCase() ?? "?";
   const bg = badgeColor(member.user_id);
   const dark = bg === colors.purple || bg === colors.violet;
 
   return (
     <View style={styles.memberCard}>
       <View style={[styles.memberAvatar, { backgroundColor: bg }]}>
-        <Text style={[styles.memberAvatarText, dark && { color: colors.cream }]}>{initial}</Text>
+        <Text
+          style={[styles.memberAvatarText, dark && { color: colors.cream }]}
+        >
+          {initial}
+        </Text>
       </View>
-      <Text style={styles.memberLabel} numberOfLines={1}>{label}</Text>
-      {member.role === 'admin' && (
+      <Text style={styles.memberLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      {member.role === "admin" && (
         <View style={styles.adminBadge}>
           <Text style={styles.adminText}>Admin</Text>
         </View>
@@ -51,31 +76,48 @@ function MemberCard({ member }) {
   );
 }
 
-function RecCard({ rec, index }) {
+function RecCard({ rec, index, onPress }) {
   const book = rec.books ?? rec.book ?? {};
-  const title = book.nombre_libro ?? book.title ?? '—';
-  const author = book.autor ?? book.author ?? '';
-  const genreRaw = book.genero ?? book.genre ?? '';
-  const genres = (typeof genreRaw === 'string' ? genreRaw.split(',') : [String(genreRaw)])
-    .map(g => g.trim()).filter(Boolean).slice(0, 2);
-  const score = rec.final_score
-    ? Math.round(rec.final_score * 100)
-    : Math.round((rec.score ?? 0) * 100);
+  const title = book.nombre_libro ?? book.title ?? "—";
+  const author = book.autor ?? book.author ?? "";
+  const genreRaw = book.genero ?? book.genre ?? "";
+  const genres = (
+    typeof genreRaw === "string" ? genreRaw.split(",") : [String(genreRaw)]
+  )
+    .map((g) => g.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  const groupScore =
+    rec.final_score ?? rec.collaborative_score ?? rec.score ?? 0;
+  const score = toPct(groupScore, 0);
   const why = rec.explanation?.why_recommended ?? rec.reasons?.[0] ?? null;
   const isTop = index === 0;
+  const metricItems = [
+    { label: "Group", value: toPct(groupScore, 0) },
+    { label: "Fairness", value: toPct(rec.fairness_score, 0) },
+    { label: "Coverage", value: toPct(rec.member_coverage, 0) },
+  ];
 
   return (
-    <View style={styles.recCard}>
+    <Pressable onPress={onPress} style={styles.recCard}>
       <View style={[styles.rankPill, isTop && styles.rankPillTop]}>
-        <Text style={[styles.rankText, isTop && styles.rankTextTop]}>#{rec.rank ?? index + 1}</Text>
+        <Text style={[styles.rankText, isTop && styles.rankTextTop]}>
+          #{rec.rank ?? index + 1}
+        </Text>
       </View>
 
       <View style={styles.recInfo}>
-        <Text style={styles.recTitle} numberOfLines={2}>{title}</Text>
-        {author ? <Text style={styles.recAuthor} numberOfLines={1}>{author}</Text> : null}
+        <Text style={styles.recTitle} numberOfLines={2}>
+          {title}
+        </Text>
+        {author ? (
+          <Text style={styles.recAuthor} numberOfLines={1}>
+            {author}
+          </Text>
+        ) : null}
         {genres.length > 0 && (
           <View style={styles.recGenres}>
-            {genres.map(g => (
+            {genres.map((g) => (
               <View key={g} style={styles.genrePill}>
                 <Text style={styles.genreText}>{g}</Text>
               </View>
@@ -83,15 +125,27 @@ function RecCard({ rec, index }) {
           </View>
         )}
         {why ? (
-          <Text style={styles.recReason} numberOfLines={3}>✦ {why}</Text>
+          <Text style={styles.recReason} numberOfLines={3}>
+            Motivo: {why}
+          </Text>
         ) : null}
+        <View style={styles.statsRow}>
+          {metricItems.map((item) => (
+            <View key={item.label} style={styles.statPill}>
+              <Text style={styles.statLabel}>{item.label}</Text>
+              <Text style={styles.statValue}>{item.value}%</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       <View style={[styles.scoreBubble, isTop && styles.scoreBubbleTop]}>
-        <Text style={[styles.scoreNum, isTop && styles.scoreNumTop]}>{score}</Text>
+        <Text style={[styles.scoreNum, isTop && styles.scoreNumTop]}>
+          {score}
+        </Text>
         <Text style={[styles.scorePct, isTop && styles.scorePctTop]}>%</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -102,82 +156,310 @@ export function GroupDetailScreen({ navigation, route }) {
   const [members, setMembers] = useState([]);
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [metodo, setMetodo] = useState('media_sigma');
+  const [recalculating, setRecalculating] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [metodo, setMetodo] = useState("media_sigma");
+  const [joiningGroup, setJoiningGroup] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteQuery, setInviteQuery] = useState('');
+  const [inviteResults, setInviteResults] = useState([]);
+  const [inviteSearching, setInviteSearching] = useState(false);
+  const [inviting, setInviting] = useState(null);
 
-  useEffect(() => {
-    if (!groupId) { setLoading(false); return; }
-    async function load() {
-      try {
-        const [{ data: g }, { data: m }, { data: r }] = await Promise.all([
-          supabase
-            .from('recommendation_groups')
-            .select('id, group_name, vibe, telegram_chat_id, created_by')
-            .eq('id', groupId)
-            .maybeSingle(),
-          supabase
-            .from('group_members')
-            .select('user_id, role, user_preferences(username, archetype)')
-            .eq('group_id', groupId),
-          supabase
-            .from('group_recommendations')
-            .select('rank, final_score, explanation, books(nombre_libro, autor, genero)')
-            .eq('group_id', groupId)
-            .order('rank', { ascending: true })
-            .limit(3),
-        ]);
+  const loadGroupData = useCallback(async ({ skipTrigger = false } = {}) => {
+    if (!groupId) return;
+    try {
+      const [{ data: g }, { data: recRows }] = await Promise.all([
+        supabase
+          .from("recommendation_groups")
+          .select("id, group_name, vibe, telegram_chat_id, created_by, join_code")
+          .eq("id", groupId)
+          .maybeSingle(),
+        supabase
+          .from("group_recommendations")
+          .select(
+            "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id, generated_at",
+          )
+          .eq("group_id", groupId)
+          .order("rank", { ascending: true })
+          .limit(3),
+      ]);
 
-        let nextRecs = r ?? [];
-        try {
-          const remote = await triggerGroupRecommendations(groupId, metodo);
-          nextRecs = remote?.recommendations ?? nextRecs;
-        } catch (_) {
-          // Keep the latest persisted rows if the Python service is unavailable.
+      const { data: memberRows } = await supabase
+        .from("group_members")
+        .select("user_id, role")
+        .eq("group_id", groupId);
+
+      const userIds = (memberRows ?? []).map((r) => r.user_id).filter(Boolean);
+      let prefsByUserId = {};
+      if (userIds.length > 0) {
+        const { data: prefRows, error: prefErr } = await supabase
+          .from("user_preferences")
+          .select("user_id, username, archetype")
+          .in("user_id", userIds);
+        if (prefErr) {
+          console.warn("user_preferences fetch error:", prefErr.message);
         }
-
-        setGroup(g ?? null);
-        setMembers(m ?? []);
-        setRecs(nextRecs);
-      } catch (e) {
-        console.warn('GroupDetail load error:', e.message);
-      } finally {
-        setLoading(false);
+        const rows = prefRows ?? [];
+        if (rows.length === 0 && userIds.length > 0) {
+          const { data: ownPrefs } = await supabase
+            .from("user_preferences")
+            .select("user_id, username, archetype")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (ownPrefs) rows.push(ownPrefs);
+        }
+        prefsByUserId = Object.fromEntries(rows.map((row) => [row.user_id, row]));
       }
+
+      const nextMembers = (memberRows ?? []).map((member) => ({
+        ...member,
+        user_preferences: prefsByUserId[member.user_id] ?? {},
+      }));
+
+      let nextRecs = recRows ?? [];
+      const bookIds = nextRecs.map((row) => row.book_id).filter(Boolean);
+      if (bookIds.length > 0) {
+        const { data: bookRows } = await supabase
+          .from("books")
+          .select("id, nombre_libro, autor, genero")
+          .in("id", bookIds);
+        const booksById = Object.fromEntries(
+          (bookRows ?? []).map((row) => [row.id, row]),
+        );
+        nextRecs = nextRecs.map((rec) => ({
+          ...rec,
+          books: booksById[rec.book_id] ?? {},
+        }));
+      }
+
+      const ONE_HOUR = 60 * 60 * 1000;
+      const generated_at = nextRecs?.[0]?.generated_at;
+      const isStale = !generated_at || (Date.now() - new Date(generated_at).getTime() > ONE_HOUR);
+
+      if (isStale && !skipTrigger) {
+        triggerGroupRecommendations(groupId, metodo).catch(() => {});
+        setTimeout(() => loadGroupData({ skipTrigger: true }), 3000);
+      }
+
+      setGroup(g ?? null);
+      setMembers(nextMembers);
+      setRecs(nextRecs);
+      setRecalculating(nextRecs.length === 0);
+    } catch (e) {
+      console.warn("GroupDetail load error:", e.message);
     }
-    load();
   }, [groupId, metodo]);
 
-  const groupName = group?.group_name ?? '—';
+  useEffect(() => {
+    if (!groupId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    loadGroupData().finally(() => setLoading(false));
+  }, [groupId, metodo, loadGroupData]);
+
+  useEffect(() => {
+    if (!groupId) return;
+    const channelName = `group-recs-${groupId}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'group_recommendations',
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          loadGroupData({ skipTrigger: true });
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [groupId, loadGroupData]);
+
+  const onRecalculate = async () => {
+    setRecalculating(true);
+    try {
+      await triggerGroupRecommendations(groupId, metodo);
+      await loadGroupData({ skipTrigger: true });
+    } catch (e) {
+      console.warn('recalculate:', e?.message);
+    } finally {
+      setRecalculating(false);
+    }
+  };
+
+  const groupName = group?.group_name ?? "—";
   const vibes = Array.isArray(group?.vibe) ? group.vibe : [];
   const initials = groupInitials(groupName);
-  const headerBg = badgeColor(groupId ?? '');
+  const headerBg = badgeColor(groupId ?? "");
   const hasTelegram = Boolean(group?.telegram_chat_id);
+  const isAdmin = user?.id === group?.created_by;
+  const isMember = !loading && members.some((m) => m.user_id === user?.id);
+
+  useEffect(() => {
+    if (!showInvite || inviteQuery.trim().length < 2) {
+      setInviteResults([]);
+      return;
+    }
+    setInviteSearching(true);
+    const t = setTimeout(async () => {
+      const q = inviteQuery.trim();
+      try {
+        const { data, error } = await supabase.rpc('search_users', { query: q });
+        if (error) {
+          console.warn('[search_users] RPC error:', error.message, error.code);
+          throw error;
+        }
+        console.log('[search_users] results:', data?.length ?? 0);
+        const currentIds = new Set(members.map((m) => m.user_id));
+        setInviteResults((data ?? []).filter((r) => !currentIds.has(r.user_id)));
+      } catch (_) {
+        const { data: fallback } = await supabase
+          .from('user_preferences')
+          .select('user_id, username')
+          .ilike('username', `%${q}%`)
+          .limit(15);
+        console.log('[search_users] fallback results:', fallback?.length ?? 0);
+        const currentIds = new Set(members.map((m) => m.user_id));
+        setInviteResults(
+          (fallback ?? [])
+            .map((r) => ({ user_id: r.user_id, username: r.username ?? '', email: '' }))
+            .filter((r) => !currentIds.has(r.user_id)),
+        );
+      } finally {
+        setInviteSearching(false);
+      }
+    }, 400);
+    return () => clearTimeout(t);
+  }, [inviteQuery, showInvite, members]);
+
+  const addMember = async (targetUserId) => {
+    if (!groupId || !targetUserId) return;
+    setInviting(targetUserId);
+    try {
+      const { error } = await supabase.from('group_members').insert({
+        group_id: groupId,
+        user_id: targetUserId,
+        role: 'member',
+        influence_weight: 1.0,
+      });
+      if (error) {
+        if (error.code === '23505') {
+          Alert.alert('Ya es miembro', 'Este usuario ya pertenece al círculo.');
+        } else {
+          throw error;
+        }
+      } else {
+        setShowInvite(false);
+        setInviteQuery('');
+        setInviteResults([]);
+        await loadGroupData({ skipTrigger: true });
+      }
+    } catch (e) {
+      Alert.alert('Error', e?.message ?? 'No se pudo agregar al miembro');
+    } finally {
+      setInviting(null);
+    }
+  };
+
+  const onJoinGroup = async () => {
+    setJoiningGroup(true);
+    try {
+      const { error: joinErr } = await supabase.from("group_members").insert({
+        group_id: groupId,
+        user_id: user.id,
+        role: "member",
+        influence_weight: 1.0,
+      });
+      if (joinErr && joinErr.code !== "23505") throw joinErr;
+      try { await triggerGroupRecommendations(groupId); } catch {}
+      await loadGroupData({ skipTrigger: true });
+    } catch (e) {
+      Alert.alert("Error", e?.message || "No se pudo unir al círculo");
+    } finally {
+      setJoiningGroup(false);
+    }
+  };
+
+  const onLeaveGroup = () => {
+    Alert.alert(
+      'Abandonar círculo',
+      '¿Seguro que quieres abandonar este círculo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Abandonar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', groupId)
+                .eq('user_id', user.id);
+              navigation.navigate(routes.Home);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo abandonar el círculo');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onDeleteGroup = () => {
+    Alert.alert(
+      'Eliminar círculo',
+      'Esta acción es permanente. ¿Eliminar el círculo y todas sus recomendaciones?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase.from('group_recommendations').delete().eq('group_id', groupId);
+              await supabase.from('group_members').delete().eq('group_id', groupId);
+              await supabase.from('recommendation_groups').update({ is_active: false }).eq('id', groupId);
+              navigation.navigate(routes.Home);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo eliminar el círculo');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   function handleTelegram() {
     Alert.alert(
-      'Coming soon',
-      'Las recomendaciones se enviarán al canal cuando el bot esté activo.',
-      [{ text: 'OK' }],
+      "Coming soon",
+      "Las recomendaciones se enviarán al canal cuando el bot esté activo.",
+      [{ text: "OK" }],
     );
   }
 
   return (
     <Screen backgroundColor={colors.cream} contentStyle={styles.content}>
       <ScrollView showsVerticalScrollIndicator={false}>
-
         {/* ── Header ── */}
-        <LinearGradient colors={['#2B1B69', '#16102E']} style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+        <LinearGradient colors={["#2B1B69", "#16102E"]} style={styles.header}>
+          <Pressable onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate(routes.Home)} style={styles.back}>
             <Text style={styles.backText}>‹</Text>
           </Pressable>
 
           <View style={styles.headerRight}>
-            <NotificationsBell navigation={navigation} userId={user?.id} light />
             <Pressable
               onPress={() => navigation.navigate(routes.Personality)}
               style={styles.profileBtnLight}
             >
               <Text style={styles.profileBtnLightText}>
-                {user?.name?.[0]?.toUpperCase() ?? '?'}
+                {user?.name?.[0]?.toUpperCase() ?? "?"}
               </Text>
             </Pressable>
           </View>
@@ -189,7 +471,7 @@ export function GroupDetailScreen({ navigation, route }) {
 
           {vibes.length > 0 && (
             <View style={styles.vibeRow}>
-              {vibes.slice(0, 4).map(v => (
+              {vibes.slice(0, 4).map((v) => (
                 <View key={v} style={styles.vibePill}>
                   <Text style={styles.vibePillText}>{v}</Text>
                 </View>
@@ -197,22 +479,118 @@ export function GroupDetailScreen({ navigation, route }) {
             </View>
           )}
 
-          <Text style={styles.memberCount}>{members.length} member{members.length !== 1 ? 's' : ''}</Text>
+          <Text style={styles.memberCount}>
+            {members.length} member{members.length !== 1 ? "s" : ""}
+          </Text>
         </LinearGradient>
 
-        {/* ── Members ── */}
-        {!loading && members.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Members</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.membersRow}
+        {/* ── Código de invitación ── */}
+        {group && (
+          <View style={styles.codeSection}>
+            <Text style={styles.codeSectionLabel}>CÓDIGO DE INVITACIÓN</Text>
+            <Pressable
+              style={styles.codeBox}
+              onPress={async () => {
+                const code = group.join_code ?? group.id?.slice(0, 8).toUpperCase();
+                await Clipboard.setStringAsync(code ?? '');
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
             >
-              {members.map(m => (
-                <MemberCard key={m.user_id} member={m} />
-              ))}
-            </ScrollView>
+              <Text style={styles.codeText}>
+                {group.join_code ?? group.id?.slice(0, 8).toUpperCase() ?? '—'}
+              </Text>
+              <Text style={styles.codeCopyHint}>
+                {copied ? '✓ Copiado' : 'Toca para copiar'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* ── Members ── */}
+        {!loading && (
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <Text style={styles.sectionTitle}>Members</Text>
+              <Pressable
+                onPress={() => {
+                  setShowInvite((v) => !v);
+                  setInviteQuery('');
+                  setInviteResults([]);
+                }}
+                style={styles.addMemberBtn}
+              >
+                <Text style={styles.addMemberBtnText}>+ Add</Text>
+              </Pressable>
+            </View>
+
+            {members.length > 0 && (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.membersRow}
+              >
+                {members.map((m) => (
+                  <MemberCard key={m.user_id} member={m} />
+                ))}
+              </ScrollView>
+            )}
+
+            {showInvite && (
+              <View style={styles.invitePanel}>
+                <View style={styles.inviteSearchRow}>
+                  <TextInput
+                    value={inviteQuery}
+                    onChangeText={setInviteQuery}
+                    placeholder="Buscar por usuario o email…"
+                    placeholderTextColor="rgba(22,16,46,0.35)"
+                    style={styles.inviteInput}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoFocus
+                  />
+                  {inviteSearching && (
+                    <Text style={styles.inviteSpinner}>···</Text>
+                  )}
+                </View>
+
+                {inviteResults.length > 0 && (
+                  <View style={styles.inviteResults}>
+                    {inviteResults.map((r) => {
+                      const label = r.username || r.email?.split('@')[0] || '?';
+                      const isInviting = inviting === r.user_id;
+                      return (
+                        <Pressable
+                          key={r.user_id}
+                          style={styles.inviteResultRow}
+                          onPress={() => addMember(r.user_id)}
+                          disabled={isInviting}
+                        >
+                          <View style={styles.inviteAvatar}>
+                            <Text style={styles.inviteAvatarText}>
+                              {label[0].toUpperCase()}
+                            </Text>
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.inviteName}>{label}</Text>
+                            {r.email ? (
+                              <Text style={styles.inviteEmail}>{r.email}</Text>
+                            ) : null}
+                          </View>
+                          <Text style={styles.inviteAddBtn}>
+                            {isInviting ? '…' : '+ Agregar'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {inviteQuery.length >= 2 && !inviteSearching && inviteResults.length === 0 && (
+                  <Text style={styles.inviteEmpty}>No se encontraron usuarios</Text>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -223,22 +601,41 @@ export function GroupDetailScreen({ navigation, route }) {
             <View style={styles.autoBadge}>
               <Text style={styles.autoBadgeText}>✦ AUTO</Text>
             </View>
+            <Pressable
+              onPress={onRecalculate}
+              disabled={recalculating}
+              style={[styles.recalcBtn, recalculating && styles.recalcBtnDisabled]}
+            >
+              {recalculating ? (
+                <ActivityIndicator size="small" color={colors.purple} />
+              ) : (
+                <Text style={styles.recalcBtnText}>↻ Recalcular</Text>
+              )}
+            </Pressable>
           </View>
 
           {/* Selector de método de agregación */}
           <View style={metodoStyles.row}>
             {[
-              { id: 'media_sigma', label: 'Consenso' },
-              { id: 'promedio',    label: 'Promedio' },
-              { id: 'min_miseria', label: 'Justo' },
-              { id: 'max_placer',  label: 'Mayoría' },
-            ].map(m => (
+              { id: "media_sigma", label: "Consenso" },
+              { id: "promedio", label: "Promedio" },
+              { id: "min_miseria", label: "Justo" },
+              { id: "max_placer", label: "Mayoría" },
+            ].map((m) => (
               <Pressable
                 key={m.id}
                 onPress={() => setMetodo(m.id)}
-                style={[metodoStyles.chip, metodo === m.id && metodoStyles.chipOn]}
+                style={[
+                  metodoStyles.chip,
+                  metodo === m.id && metodoStyles.chipOn,
+                ]}
               >
-                <Text style={[metodoStyles.chipText, metodo === m.id && metodoStyles.chipTextOn]}>
+                <Text
+                  style={[
+                    metodoStyles.chipText,
+                    metodo === m.id && metodoStyles.chipTextOn,
+                  ]}
+                >
                   {m.label}
                 </Text>
               </Pressable>
@@ -246,15 +643,29 @@ export function GroupDetailScreen({ navigation, route }) {
           </View>
 
           {loading ? null : recs.length === 0 ? (
-            <View style={styles.emptyRecs}>
-              <Text style={styles.emptyRecsText}>
-                No recommendations yet — the engine runs once your circle has members and preferences.
-              </Text>
-            </View>
+            recalculating ? (
+              <View style={styles.recsLoading}>
+                <ActivityIndicator color={colors.purple} />
+                <Text style={styles.recsLoadingText}>Calculando recomendaciones…</Text>
+                <Text style={styles.recsLoadingSubtext}>Esto tarda unos segundos la primera vez</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyRecs}>
+                <Text style={styles.emptyRecsText}>
+                  No recommendations yet — the engine runs once your circle has
+                  members and preferences.
+                </Text>
+              </View>
+            )
           ) : (
             <View style={styles.recList}>
               {recs.map((rec, i) => (
-                <RecCard key={rec.rank ?? i} rec={rec} index={i} />
+                <RecCard
+                  key={rec.rank ?? i}
+                  rec={rec}
+                  index={i}
+                  onPress={() => navigation.navigate(routes.Book, { bookId: rec.book_id, groupId: group.id })}
+                />
               ))}
             </View>
           )}
@@ -278,6 +689,33 @@ export function GroupDetailScreen({ navigation, route }) {
           </View>
         )}
 
+        {/* ── Acciones ── */}
+        {!loading && group && (
+          <View style={styles.dangerSection}>
+            {!isMember ? (
+              <Pressable
+                onPress={onJoinGroup}
+                disabled={joiningGroup}
+                style={[styles.joinGroupBtn, joiningGroup && { opacity: 0.5 }]}
+              >
+                {joiningGroup ? (
+                  <ActivityIndicator color={colors.cream} />
+                ) : (
+                  <Text style={styles.joinGroupBtnText}>Unirse al círculo</Text>
+                )}
+              </Pressable>
+            ) : isAdmin ? (
+              <Pressable onPress={onDeleteGroup} style={styles.dangerBtn}>
+                <Text style={styles.dangerBtnText}>Eliminar círculo</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={onLeaveGroup} style={styles.dangerBtn}>
+                <Text style={styles.dangerBtnText}>Abandonar círculo</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </Screen>
@@ -288,143 +726,470 @@ const styles = StyleSheet.create({
   content: { paddingBottom: 0 },
 
   header: {
-    paddingTop: 54, paddingHorizontal: 22, paddingBottom: 24,
-    alignItems: 'center', gap: 8,
+    paddingTop: 54,
+    paddingHorizontal: 22,
+    paddingBottom: 24,
+    alignItems: "center",
+    gap: 8,
   },
   back: {
-    position: 'absolute', top: 14, left: 16,
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    alignItems: 'center', justifyContent: 'center',
+    position: "absolute",
+    top: 14,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  backText: { fontSize: 22, color: colors.cream, fontWeight: '900', marginTop: -2 },
+  backText: {
+    fontSize: 22,
+    color: colors.cream,
+    fontWeight: "900",
+    marginTop: -2,
+  },
   headerRight: {
-    position: 'absolute', top: 14, right: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    position: "absolute",
+    top: 14,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   profileBtnLight: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    alignItems: 'center', justifyContent: 'center',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.12)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  profileBtnLightText: { fontSize: 15, fontWeight: '900', color: colors.cream },
-  badge: { width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  badgeText: { fontSize: 26, fontWeight: '900', color: colors.ink, letterSpacing: -0.5 },
-  groupName: { fontSize: 26, fontWeight: '900', color: colors.cream, letterSpacing: -0.6, textAlign: 'center' },
-  vibeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 2 },
+  profileBtnLightText: { fontSize: 15, fontWeight: "900", color: colors.cream },
+  badge: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badgeText: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: -0.5,
+  },
+  groupName: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: colors.cream,
+    letterSpacing: -0.6,
+    textAlign: "center",
+  },
+  vibeRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "center",
+    marginTop: 2,
+  },
   vibePill: {
-    borderRadius: radii.pill, paddingVertical: 4, paddingHorizontal: 12,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
-  vibePillText: { fontSize: 11, fontWeight: '700', color: 'rgba(251,246,235,0.85)' },
-  memberCount: { fontSize: 12, fontWeight: '700', color: 'rgba(251,246,235,0.5)', marginTop: 2 },
+  vibePillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "rgba(251,246,235,0.85)",
+  },
+  memberCount: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "rgba(251,246,235,0.5)",
+    marginTop: 2,
+  },
 
   section: { paddingHorizontal: 22, paddingTop: 24 },
-  sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
-  sectionTitle: { fontSize: 20, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
-  autoBadge: { borderRadius: radii.pill, paddingVertical: 4, paddingHorizontal: 10, backgroundColor: colors.lime },
-  autoBadgeText: { fontSize: 10, fontWeight: '900', color: colors.ink, letterSpacing: 0.8 },
-
-  membersRow: { gap: 10, paddingTop: 12, paddingBottom: 4 },
-  memberCard: { alignItems: 'center', gap: 6, width: 72 },
-  memberAvatar: {
-    width: 48, height: 48, borderRadius: 16,
-    alignItems: 'center', justifyContent: 'center',
+  sectionHead: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginBottom: 14,
   },
-  memberAvatarText: { fontSize: 18, fontWeight: '900', color: colors.ink },
-  memberLabel: {
-    fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.6)',
-    textAlign: 'center', width: 72,
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: -0.3,
   },
-  adminBadge: {
-    borderRadius: radii.pill, paddingVertical: 2, paddingHorizontal: 7,
+  autoBadge: {
+    borderRadius: radii.pill,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     backgroundColor: colors.lime,
   },
-  adminText: { fontSize: 9, fontWeight: '900', color: colors.ink, letterSpacing: 0.4 },
+  autoBadgeText: {
+    fontSize: 10,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: 0.8,
+  },
+
+  membersRow: { gap: 10, paddingTop: 12, paddingBottom: 4 },
+  memberCard: { alignItems: "center", gap: 6, width: 72 },
+  memberAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  memberAvatarText: { fontSize: 18, fontWeight: "900", color: colors.ink },
+  memberLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "rgba(22,16,46,0.6)",
+    textAlign: "center",
+    width: 72,
+  },
+  adminBadge: {
+    borderRadius: radii.pill,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    backgroundColor: colors.lime,
+  },
+  adminText: {
+    fontSize: 9,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: 0.4,
+  },
 
   recList: { gap: 12 },
   recCard: {
-    flexDirection: 'row', alignItems: 'flex-start', gap: 14,
-    backgroundColor: colors.white, borderRadius: radii.xl, padding: 16,
-    borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)',
-    position: 'relative',
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 14,
+    backgroundColor: colors.white,
+    borderRadius: radii.xl,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(22,16,46,0.06)",
+    position: "relative",
   },
   rankPill: {
-    position: 'absolute', top: 12, left: 12, zIndex: 1,
-    borderRadius: radii.pill, paddingVertical: 3, paddingHorizontal: 7,
-    backgroundColor: 'rgba(22,16,46,0.08)',
+    position: "absolute",
+    top: 12,
+    left: 12,
+    zIndex: 1,
+    borderRadius: radii.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 7,
+    backgroundColor: "rgba(22,16,46,0.08)",
   },
   rankPillTop: { backgroundColor: colors.lime },
-  rankText: { fontSize: 10, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
+  rankText: { fontSize: 10, fontWeight: "900", color: "rgba(22,16,46,0.5)" },
   rankTextTop: { color: colors.ink },
   recInfo: { flex: 1, paddingTop: 22, gap: 4 },
-  recTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3, lineHeight: 20 },
-  recAuthor: { fontSize: 13, fontStyle: 'italic', color: 'rgba(22,16,46,0.55)', fontWeight: '600' },
-  recGenres: { flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 },
-  genrePill: {
-    borderRadius: radii.pill, paddingVertical: 3, paddingHorizontal: 8,
-    backgroundColor: 'rgba(124,91,255,0.1)',
+  recTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: colors.ink,
+    letterSpacing: -0.3,
+    lineHeight: 20,
   },
-  genreText: { fontSize: 10, fontWeight: '800', color: colors.purple },
-  recReason: { fontSize: 12, fontWeight: '600', color: colors.purple, marginTop: 8, lineHeight: 17 },
+  recAuthor: {
+    fontSize: 13,
+    fontStyle: "italic",
+    color: "rgba(22,16,46,0.55)",
+    fontWeight: "600",
+  },
+  recGenres: { flexDirection: "row", flexWrap: "wrap", gap: 5, marginTop: 6 },
+  genrePill: {
+    borderRadius: radii.pill,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    backgroundColor: "rgba(124,91,255,0.1)",
+  },
+  genreText: { fontSize: 10, fontWeight: "800", color: colors.purple },
+  recReason: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: colors.purple,
+    marginTop: 8,
+    lineHeight: 17,
+  },
+  statsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 10,
+  },
+  statPill: {
+    minWidth: 74,
+    borderRadius: radii.lg,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(22,16,46,0.05)",
+  },
+  statLabel: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "rgba(22,16,46,0.45)",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  statValue: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: colors.ink,
+    marginTop: 2,
+  },
   scoreBubble: {
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-    width: 52, height: 52, borderRadius: 16,
-    backgroundColor: 'rgba(22,16,46,0.06)',
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: "rgba(22,16,46,0.06)",
     marginTop: 22,
   },
   scoreBubbleTop: { backgroundColor: colors.lime },
-  scoreNum: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)', lineHeight: 20 },
-  scoreNumTop: { color: colors.ink },
-  scorePct: { fontSize: 9, fontWeight: '800', color: 'rgba(22,16,46,0.4)', marginTop: -2 },
-  scorePctTop: { color: 'rgba(22,16,46,0.6)' },
-
-  emptyRecs: {
-    padding: 20, borderRadius: radii.xl,
-    backgroundColor: 'rgba(22,16,46,0.04)',
-    borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(22,16,46,0.12)',
+  scoreNum: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "rgba(22,16,46,0.5)",
+    lineHeight: 20,
   },
-  emptyRecsText: { fontSize: 13, fontWeight: '600', color: 'rgba(22,16,46,0.4)', lineHeight: 19 },
+  scoreNumTop: { color: colors.ink },
+  scorePct: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: "rgba(22,16,46,0.4)",
+    marginTop: -2,
+  },
+  scorePctTop: { color: "rgba(22,16,46,0.6)" },
 
+  recsLoading: {
+    padding: 24,
+    borderRadius: radii.xl,
+    backgroundColor: "rgba(22,16,46,0.04)",
+    alignItems: "center",
+    gap: 10,
+  },
+  recsLoadingText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.ink,
+    letterSpacing: -0.2,
+  },
+  recsLoadingSubtext: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(22,16,46,0.45)",
+    textAlign: "center",
+  },
+  emptyRecs: {
+    padding: 20,
+    borderRadius: radii.xl,
+    backgroundColor: "rgba(22,16,46,0.04)",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(22,16,46,0.12)",
+  },
+  emptyRecsText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(22,16,46,0.4)",
+    lineHeight: 19,
+  },
+
+  codeSection: { marginHorizontal: 22, marginBottom: 12 },
+  codeSectionLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 6 },
+  codeBox: { backgroundColor: colors.lime, borderRadius: radii.md, padding: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1.5, borderColor: colors.ink },
+  codeText: { fontSize: 20, fontWeight: '900', color: colors.ink, letterSpacing: 3 },
+  codeCopyHint: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.55)' },
+  recalcBtn: {
+    marginLeft: 'auto',
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: 'rgba(22,16,46,0.06)',
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recalcBtnDisabled: { opacity: 0.5 },
+  recalcBtnText: { fontSize: 12, fontWeight: '800', color: colors.ink },
   tgCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 14,
-    backgroundColor: colors.ink, borderRadius: radii.xl, padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    backgroundColor: colors.ink,
+    borderRadius: radii.xl,
+    padding: 16,
   },
   tgIconWrap: {
-    width: 46, height: 46, borderRadius: 14, backgroundColor: colors.lime,
-    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    width: 46,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: colors.lime,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
-  tgIconText: { fontSize: 20, fontWeight: '900', color: colors.ink },
-  tgTitle: { fontSize: 16, fontWeight: '900', color: colors.cream, marginBottom: 3 },
-  tgSub: { fontSize: 12, fontWeight: '600', color: 'rgba(251,246,235,0.6)', lineHeight: 17 },
-  tgArrow: { fontSize: 26, fontWeight: '900', color: 'rgba(251,246,235,0.3)', flexShrink: 0 },
+  tgIconText: { fontSize: 20, fontWeight: "900", color: colors.ink },
+  tgTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: colors.cream,
+    marginBottom: 3,
+  },
+  tgSub: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(251,246,235,0.6)",
+    lineHeight: 17,
+  },
+  tgArrow: {
+    fontSize: 26,
+    fontWeight: "900",
+    color: "rgba(251,246,235,0.3)",
+    flexShrink: 0,
+  },
+  dangerSection: {
+    marginHorizontal: 22,
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(22,16,46,0.08)',
+  },
+  dangerBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,126,107,0.35)',
+    alignItems: 'center',
+  },
+  dangerBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.coral,
+    letterSpacing: 0.1,
+  },
+  joinGroupBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: radii.xl,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+  },
+  joinGroupBtnText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: colors.cream,
+    letterSpacing: 0.1,
+  },
+  addMemberBtn: {
+    marginLeft: 'auto',
+    borderRadius: radii.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    backgroundColor: colors.ink,
+  },
+  addMemberBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: colors.cream,
+  },
+  invitePanel: {
+    marginTop: 12,
+    backgroundColor: colors.white,
+    borderRadius: radii.xl,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(22,16,46,0.08)',
+    gap: 8,
+  },
+  inviteSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1.5,
+    borderBottomColor: 'rgba(22,16,46,0.1)',
+    paddingBottom: 8,
+  },
+  inviteInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.ink,
+    paddingVertical: 4,
+  },
+  inviteSpinner: {
+    fontSize: 14,
+    color: 'rgba(22,16,46,0.35)',
+    letterSpacing: 2,
+  },
+  inviteResults: { gap: 2 },
+  inviteResultRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(22,16,46,0.04)',
+  },
+  inviteAvatar: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    backgroundColor: colors.lavender,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  inviteAvatarText: { fontSize: 13, fontWeight: '900', color: colors.ink },
+  inviteName: { fontSize: 14, fontWeight: '700', color: colors.ink },
+  inviteEmail: { fontSize: 11, fontWeight: '600', color: 'rgba(22,16,46,0.45)', marginTop: 1 },
+  inviteAddBtn: { fontSize: 12, fontWeight: '800', color: colors.purple, flexShrink: 0 },
+  inviteEmpty: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(22,16,46,0.4)',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
 });
 
 const metodoStyles = StyleSheet.create({
   row: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
     marginBottom: 14,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   chip: {
     paddingVertical: 7,
     paddingHorizontal: 13,
     borderRadius: 999,
-    backgroundColor: 'rgba(22,16,46,0.06)',
+    backgroundColor: "rgba(22,16,46,0.06)",
     borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.08)',
+    borderColor: "rgba(22,16,46,0.08)",
   },
   chipOn: {
-    backgroundColor: '#16102E',
-    borderColor: '#16102E',
+    backgroundColor: "#16102E",
+    borderColor: "#16102E",
   },
   chipText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(22,16,46,0.6)',
+    fontWeight: "700",
+    color: "rgba(22,16,46,0.6)",
   },
   chipTextOn: {
-    color: '#D4FF3D',
+    color: "#D4FF3D",
   },
 });

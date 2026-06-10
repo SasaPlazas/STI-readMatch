@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from dotenv import load_dotenv
 
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 
 @dataclass(frozen=True)
@@ -15,12 +15,12 @@ class Settings:
     api_port: int = int(os.getenv("API_PORT", "8000"))
     cors_origins_raw: str = os.getenv(
         "CORS_ORIGINS",
-        "http://localhost:8081,http://localhost:19006,http://localhost:3000",
+        "https://sti-readmatch.onrender.com,http://localhost:8081,http://localhost:19006,http://localhost:3000",
     )
     supabase_url: str = os.getenv("SUPABASE_URL", "")
     supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
     anthropic_api_key: str = os.getenv("ANTHROPIC_API_KEY", "")
-    anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+    anthropic_model: str = os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5")
 
     @property
     def cors_origins(self) -> list[str]:

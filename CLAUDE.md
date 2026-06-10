@@ -14,40 +14,112 @@ npm run ios
 npm run web
 ```
 
+```bash
+# Run the FastAPI backend locally
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+```bash
+# Install backend dependencies (Python venv is at backend/.venv/)
+pip install -r backend/requirements.txt
+```
+
 There is no test runner or linter configured in this project.
 
 ## Architecture
 
-**ReadMatch** is an Expo-managed React Native app (iOS, Android, Web) for book-group discovery and reading recommendations. All data is currently mocked in-memory — there is no backend or persistence layer yet.
+**ReadMatch** is an Expo-managed React Native app (iOS, Android, Web) for book-group discovery and reading recommendations, backed by a FastAPI service and Supabase.
 
 ### Entry flow
 
 ```
-index.js → App.js → AuthProvider + NavigationContainer + RootNavigator
+index.js → App.js → AuthProvider + NavigationContainer + AppNavigator
 ```
 
-`RootNavigator` (`src/navigation/RootNavigator.js`) renders one of two stacks based on `user?.completedOnboarding`:
-- **AuthStack** (unauthenticated): Splash → SignIn → CreateAccount → 5 onboarding screens (Identity, Behavior, Personality, Collab, Reveal)
-- **AppStack** (authenticated): Home, Book, Groups, Compatibility, Settings, etc.
+`AppNavigator` (`src/navigation/AppNavigator.js`) is a thin wrapper for `RootNavigator` (`src/navigation/RootNavigator.js`), which renders either **AuthStack** or **AppStack** based on `user?.completedOnboarding`.
+
+- **AuthStack**: Splash → SignIn → CreateAccount → 5 onboarding screens (Identity, Behavior, Personality, Collab, Reveal)
+- **AppStack**: Home, Book, Explain, Personality, CreateGroup, JoinGroup, GroupDetail, GroupPreview, Invite, GroupSettings, Sync
 
 ### State management
 
-`src/context/AuthContext.js` is the sole global state provider. It holds `{ email, name, completedOnboarding }` and exposes `signIn()`, `signUp()`, `completeOnboarding()`, `signOut()`. All screens consume this via `useAuth()`.
+`src/context/AuthContext.js` is the sole global state provider. It wraps Supabase auth — `session` is the raw Supabase session and `user` is derived from it (`{ id, email, name, completedOnboarding }`). All screens consume this via `useAuth()`.
+
+The `completedOnboarding` flag is stored in Supabase `user_metadata` and controls which stack is shown. Both `completedOnboarding` and `completed_onboarding` are checked for backwards compatibility.
 
 ### Data layer
 
-All data lives in `src/data/sample.js`: books (with genre/complexity/gradient metadata), members, reading groups, and discoverable groups.
+**Supabase** is the persistence layer. Key tables: `user_preferences`, `books`, `recommendation_groups`, `group_members`, `group_recommendations`, `user_weights`.
 
-`src/utils/recommendations.js` implements the recommendation scoring algorithm:
-- **50%** tag overlap (genre matching across member preferences)
-- **30%** complexity match (book complexity vs. member depth preferences)
-- **20%** diversity bonus (boosts books appealing to minority taste profiles)
+`src/utils/userStorage.js` is the primary Supabase client for reads/writes: upserts user preferences, creates groups (via the `create_group_with_admin` RPC), joins groups by link, and triggers backend recommendation recomputes. The `books` table uses `ol_key` (Open Library key) as the upsert conflict column. Groups have a `join_code` column (requires migration: `ALTER TABLE recommendation_groups ADD COLUMN IF NOT EXISTS join_code text UNIQUE`).
+
+`GroupDetailScreen` uses the `search_users` RPC to search for users to invite, with a fallback to a direct `user_preferences` ilike query if the RPC is unavailable. `GroupDetailScreen` also subscribes to real-time Supabase inserts on `group_recommendations` to auto-refresh when a recompute completes.
+
+`src/data/sample.js` still exists but only contains fallback/mock data for UI scaffolding.
+
+### Author search
+
+`OnbIdentityScreen` searches authors first from `user_preferences.favorite_authors` in Supabase. If fewer than 3 results match, it falls back to the **Open Library API** (`https://openlibrary.org/search/authors.json`). This is the only external API call made from the frontend other than the backend.
+
+### Backend (FastAPI)
+
+`backend/app/main.py` — FastAPI service deployed on Render at `https://sti-readmatch.onrender.com` (defined in `backend/render.yaml`).
+
+Key backend modules:
+- `backend/app/models.py` — Pydantic request/response models (`RecommendationRequest`, `RevealRequest`, `TelegramRecommendRequest`, `TelegramExplainRequest`, `HealthResponse`)
+- `backend/app/supabase_service.py` — `SupabaseRepository` class; all Supabase reads/writes from the backend go through this class
+- `backend/app/recommender.py` — group scoring algorithm (cosine similarity)
+- `backend/app/reveal.py` — archetype assignment and AI text generation
+- `backend/app/config.py` — `Settings` dataclass loaded from environment via `dotenv`
+
+API endpoints:
+- `GET /health/supabase` — checks Supabase connectivity and table access
+- `POST /api/recommendations/recompute` — runs the scoring algorithm and persists results to `group_recommendations`
+- `GET /api/groups/{group_id}/recommendations` — returns stored recommendations
+- `POST /api/reveal` — assigns a reader archetype and generates an AI-written reveal text
+- `POST /api/telegram/recommend`, `/explain`, `/connect` — Telegram bot endpoints
+
+`backend/app/recommender.py` implements the group scoring algorithm using cosine similarity between user preference vectors and book vectors. The `metodo` parameter controls aggregation:
+- `media_sigma` (default) — mean minus one standard deviation (penalizes polarization)
+- `promedio` — simple average
+- `min_miseria` — minimum individual score
+- `max_placer` — maximum score, clamped to 0 if below 0.4
+
+`backend/app/reveal.py` assigns reader archetypes (The Philosopher, The Explorer, Dark Academic, etc.) by rule matching, then calls the Anthropic API to generate personalized text. Falls back to a template string if `ANTHROPIC_API_KEY` is not set.
+
+`src/lib/api.js` wraps all frontend→backend calls with a 30 s timeout and JSON error unwrapping. Use `apiFetch(path, options)` for any backend call. `src/utils/userStorage.js` calls `triggerGroupRecommendations()` after group creation/join.
+
+### Dual algorithm implementations
+
+There are two parallel implementations of the recommendation algorithm:
+
+- **`src/utils/recommendations.js`** — frontend-only reference implementation that operates on `sample.js` mock data. Not connected to the backend or Supabase. Used only for UI scaffolding and offline development.
+- **`backend/app/recommender.py`** — the production algorithm that runs server-side and persists results to `group_recommendations` in Supabase.
+
+Similarly, archetype assignment logic exists in both `src/services/revealService.js` (`assignArchetype`) and `backend/app/reveal.py` (`assign_archetype`). The frontend copy is used for local preview; the backend version produces the persisted reveal result.
+
+### Environment variables
+
+**Frontend** (`.env` / `app.config.js` extra):
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- `EXPO_PUBLIC_API_URL` — overrides the default backend URL
+- `EXPO_PUBLIC_USE_LOCAL_API=true` — allows pointing at `localhost`
+
+**Backend** (`backend/.env`):
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ANTHROPIC_API_KEY` (optional — for AI-generated reveal text)
+- `ANTHROPIC_MODEL` — defaults to `claude-haiku-4-5`
+- `CORS_ORIGINS` — comma-separated list; defaults to Render URL + common local ports
+
+`src/config/secrets.js` is gitignored and must never be committed — it holds local dev secrets only.
 
 ### Design system
 
 `src/theme/tokens.js` defines all colors, border radii, and spacing. Always use tokens rather than raw values. Key color names: `purple`, `violet`, `lime`, `coral`, `cream`, `ink`, `lavender`.
 
-Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`.
+Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`, `NotificationsBell`.
 
 ### Route names
 

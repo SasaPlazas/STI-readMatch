@@ -14,31 +14,35 @@ import { RMButton } from "../components/RMButton";
 import { insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
+import { supabase } from "../lib/supabase";
 
 const STORIES = [
-  { id: "dark", label: "Dark Academia", gradient: ["#2B1B69", "#16102E"], ink: colors.lime, mood: "velvet · ivy · candle" },
-  { id: "cozy", label: "Cozy Fantasy", gradient: ["#FF7E6B", "#FBF6EB"], ink: colors.ink, mood: "tea · hearth · familiar" },
-  { id: "psyc", label: "Psychological", gradient: ["#7C5BFF", "#E8E0FF"], ink: colors.ink, mood: "unreliable · interior" },
-  { id: "emo", label: "Emotional Narratives", gradient: ["#FF7E6B", "#7C5BFF"], ink: colors.cream, mood: "heart · ache · home" },
-  { id: "phi", label: "Philosophical", gradient: ["#16102E", "#3A2F5C"], ink: colors.lime, mood: "idea · paradox · slow" },
-  { id: "thr", label: "Fast Thrillers", gradient: ["#D4FF3D", "#94B82A"], ink: colors.ink, mood: "pulse · cliff · grip" },
-  { id: "sci", label: "Sci-Fi Worlds", gradient: ["#7C5BFF", "#16102E"], ink: colors.lime, mood: "orbit · code · soft" },
-  { id: "char", label: "Character-driven", gradient: ["#FBF6EB", "#F0E6D2"], ink: colors.ink, mood: "voice · arc · life" },
+  { id: "enl",  label: "Enemies to lovers",   gradient: ["#2B1B69", "#16102E"], ink: colors.lime,  mood: "tensión · giro · fuego" },
+  { id: "red",  label: "Redención",           gradient: ["#FF7E6B", "#FBF6EB"], ink: colors.ink,   mood: "caída · perdón · vuelta" },
+  { id: "int",  label: "Intriga política",     gradient: ["#16102E", "#3A2F5C"], ink: colors.lime,  mood: "poder · secreto · traición" },
+  { id: "via",  label: "Viaje del héroe",      gradient: ["#D4FF3D", "#94B82A"], ink: colors.ink,   mood: "llamado · prueba · regreso" },
+  { id: "sup",  label: "Supervivencia",        gradient: ["#7C5BFF", "#16102E"], ink: colors.lime,  mood: "límite · instinto · escape" },
+  { id: "det",  label: "Detective brillante",  gradient: ["#FBF6EB", "#F0E6D2"], ink: colors.ink,   mood: "pista · lógica · verdad" },
+  { id: "aca",  label: "Academia militar",     gradient: ["#FF7E6B", "#7C5BFF"], ink: colors.cream, mood: "rango · rivalidad · lealtad" },
+  { id: "nar",  label: "Narrador poco fiable", gradient: ["#534AB7", "#AFA9EC"], ink: colors.cream, mood: "duda · giro · mentira" },
 ];
 
 const GENRES = [
-  { id: "lit", label: "Literary", color: colors.purple },
-  { id: "fan", label: "Fantasy", color: colors.lime },
-  { id: "sci", label: "Sci-Fi", color: colors.coral },
-  { id: "mys", label: "Mystery", color: colors.lavender },
-  { id: "rom", label: "Romance", color: colors.cream },
-  { id: "mem", label: "Memoir", color: colors.white },
-  { id: "his", label: "History", color: colors.purple },
-  { id: "hor", label: "Horror", color: colors.coral },
-  { id: "ess", label: "Essays", color: colors.lime },
-  { id: "poe", label: "Poetry", color: colors.lavender },
-  { id: "cli", label: "Climate", color: colors.white },
-  { id: "pol", label: "Politics", color: colors.cream },
+  { id: "fan",  label: "Fantasía",          color: colors.lime },
+  { id: "rom",  label: "Romance",           color: colors.coral },
+  { id: "thr",  label: "Thriller",          color: colors.purple },
+  { id: "sci",  label: "Ciencia ficción",   color: colors.lavender },
+  { id: "cla",  label: "Clásico",           color: colors.ink, dark: true },
+  { id: "dis",  label: "Distopía",          color: colors.violet },
+  { id: "fic",  label: "Ficción",           color: colors.cream, outline: true },
+  { id: "nof",  label: "No ficción",        color: colors.white, outline: true },
+  { id: "ter",  label: "Terror",            color: colors.ink, dark: true },
+  { id: "mis",  label: "Misterio",          color: colors.lavender },
+  { id: "jov",  label: "Juvenil",           color: colors.lime },
+  { id: "man",  label: "Manga",             color: colors.coral },
+  { id: "rot",  label: "Romantasy",         color: colors.purple },
+  { id: "neg",  label: "Negocios",          color: colors.cream, outline: true },
+  { id: "tec",  label: "Tecnología",        color: colors.lavender },
 ];
 
 const AVATAR_PALETTE = [colors.purple, colors.lime, colors.coral, colors.lavender, "#7C5BFF", colors.ink];
@@ -70,22 +74,31 @@ export function OnbIdentityScreen({ navigation }) {
     setAuthorSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const url = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorQuery)}&limit=8`;
-        const res = await fetch(url);
-        const data = await res.json();
         const already = new Set(selectedAuthorsRef.current.map((a) => a.key));
-        setAuthorResults(
-          (data.docs ?? [])
-            .map((d) => ({ key: d.key, name: d.name }))
-            .filter((a) => a.name && !already.has(a.key))
-            .slice(0, 8)
-        );
+        const q = authorQuery.trim();
+
+        const { data } = await supabase
+          .from("books")
+          .select("autor")
+          .ilike("autor", `%${q}%`)
+          .limit(20);
+
+        const seen = new Set();
+        const results = [];
+        for (const row of (data ?? [])) {
+          const name = row.autor;
+          if (!name || seen.has(name.toLowerCase())) continue;
+          seen.add(name.toLowerCase());
+          const key = `bk_${name.toLowerCase().replace(/\s+/g, "_")}`;
+          if (!already.has(key)) results.push({ key, name });
+        }
+        setAuthorResults(results.slice(0, 8));
       } catch {
         setAuthorResults([]);
       } finally {
         setAuthorSearching(false);
       }
-    }, 500);
+    }, 400);
     return () => clearTimeout(timer);
   }, [authorQuery]);
 
@@ -366,7 +379,7 @@ export function OnbIdentityScreen({ navigation }) {
         {selectedAuthors.length === 0 && authorResults.length === 0 && !authorSearching && (
           <View style={styles.emptyAuthors}>
             <Text style={styles.emptyAuthorsText}>
-              Type an author's name to search Open Library
+              Escribe un nombre para buscar autores
             </Text>
           </View>
         )}

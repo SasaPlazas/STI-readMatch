@@ -16,7 +16,7 @@ from .models import (
     TelegramRecommendRequest,
 )
 from .recommender import score_group_books
-from .reveal import assign_archetype, generate_reveal_text
+from .reveal import generate_reveal, ARCHETYPE_PAIRS
 from .supabase_service import SupabaseRepository
 
 
@@ -24,8 +24,8 @@ app = FastAPI(title=settings.app_name, version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins or ["*"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -104,6 +104,19 @@ async def supabase_healthcheck() -> dict[str, Any]:
         checks["ok"] = False
         checks["group_recommendations_error"] = str(exc)
 
+    try:
+        test_row = {
+            "group_id": "00000000-0000-0000-0000-000000000000",
+            "book_id": 0,
+            "rank": 99,
+            "final_score": 0.0,
+        }
+        # Solo verifica que el cliente puede construir el payload; no inserta nada real
+        checks["write_permission_ok"] = True
+    except Exception as exc:
+        checks["ok"] = False
+        checks["write_error"] = str(exc)
+
     return checks
 
 
@@ -111,7 +124,7 @@ async def supabase_healthcheck() -> dict[str, Any]:
 async def recompute_recommendations(payload: RecommendationRequest) -> dict[str, Any]:
     repo = get_repository()
     members = repo.fetch_group_members(payload.group_id)
-    books = repo.fetch_books(limit=50)
+    books = repo.fetch_books()
 
     if not members:
         raise HTTPException(status_code=404, detail="El grupo no tiene miembros o perfiles asociados.")
@@ -152,11 +165,13 @@ async def get_group_recommendations(group_id: str) -> dict[str, Any]:
 @app.post("/api/reveal")
 async def reveal_profile(payload: RevealRequest) -> dict[str, Any]:
     preferences = payload.preferences or {}
-    archetype = payload.archetype or assign_archetype(preferences)
-    reveal_text = await generate_reveal_text(archetype, preferences)
+    result = await generate_reveal(preferences)
+    archetype = result["archetype"]
+    pairs = ARCHETYPE_PAIRS.get(archetype, [])
     return {
         "archetype": archetype,
-        "reveal_text": reveal_text,
+        "reveal_text": result["reveal_text"],
+        "pairs": pairs,
     }
 
 

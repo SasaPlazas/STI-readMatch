@@ -1,29 +1,50 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { Screen } from '../components/Screen';
-import { NotificationsBell } from '../components/NotificationsBell';
-import { useAuth } from '../context/AuthContext';
-import { supabase } from '../lib/supabase';
-import { colors, radii } from '../theme/tokens';
-import { routes } from '../navigation/routes';
+import { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
+import { Screen } from "../components/Screen";
+import { useAuth } from "../context/AuthContext";
+import { apiFetch } from "../lib/api";
+import { triggerGroupRecommendations } from "../utils/userStorage";
+import { supabase } from "../lib/supabase";
+import { colors, radii } from "../theme/tokens";
+import { routes } from "../navigation/routes";
 
 const BADGE_COLORS = [
-  colors.purple, colors.coral, colors.lavender,
-  colors.violet, colors.lime, colors.beige,
+  colors.purple,
+  colors.coral,
+  colors.lavender,
+  colors.violet,
+  colors.lime,
+  colors.beige,
 ];
 
-function strHash(s = '') {
+function strHash(s = "") {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
 }
 
-function groupInitials(name = '') {
-  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0] ?? '').join('').toUpperCase() || '?';
+function groupInitials(name = "") {
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((w) => w[0] ?? "")
+      .join("")
+      .toUpperCase() || "?"
+  );
 }
 
-function groupBadgeColor(id = '') {
+function groupBadgeColor(id = "") {
   return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
 }
 
@@ -35,17 +56,21 @@ function GroupCard({ group, onPress }) {
   return (
     <Pressable onPress={onPress} style={styles.circleCard}>
       <View style={[styles.circleBadge, { backgroundColor: bg }]}>
-        <Text style={[styles.circleBadgeText, darkBg && { color: colors.cream }]}>
+        <Text
+          style={[styles.circleBadgeText, darkBg && { color: colors.cream }]}
+        >
           {groupInitials(group.group_name)}
         </Text>
       </View>
 
       <View style={styles.circleInfo}>
-        <Text style={styles.circleName} numberOfLines={1}>{group.group_name}</Text>
+        <Text style={styles.circleName} numberOfLines={1}>
+          {group.group_name}
+        </Text>
 
         {vibes.length > 0 && (
           <View style={styles.vibeRow}>
-            {vibes.slice(0, 3).map(v => (
+            {vibes.slice(0, 3).map((v) => (
               <View key={v} style={styles.vibePill}>
                 <Text style={styles.vibePillText}>{v}</Text>
               </View>
@@ -55,7 +80,8 @@ function GroupCard({ group, onPress }) {
 
         <View style={styles.metaRow}>
           <Text style={styles.circleMeta}>
-            {group.memberCount ?? 1} member{(group.memberCount ?? 1) !== 1 ? 's' : ''}
+            {group.memberCount ?? 1} member
+            {(group.memberCount ?? 1) !== 1 ? "s" : ""}
           </Text>
           {group.telegram_chat_id ? (
             <View style={styles.tgBadge}>
@@ -72,13 +98,17 @@ function GroupCard({ group, onPress }) {
 
 function DailyMatchBanner({ rec }) {
   const book = rec.books ?? {};
-  const title = book.nombre_libro ?? '—';
-  const author = book.autor ?? '';
-  const genreRaw = book.genero ?? '';
-  const genres = (typeof genreRaw === 'string' ? genreRaw.split(',') : [genreRaw])
-    .map(g => String(g).trim()).filter(Boolean).slice(0, 2);
+  const title = book.nombre_libro ?? "—";
+  const author = book.autor ?? "";
+  const genreRaw = book.genero ?? "";
+  const genres = (
+    typeof genreRaw === "string" ? genreRaw.split(",") : [genreRaw]
+  )
+    .map((g) => String(g).trim())
+    .filter(Boolean)
+    .slice(0, 2);
   const score = Math.round((rec.final_score ?? 0) * 100);
-  const groupName = rec.recommendation_groups?.group_name ?? '';
+  const groupName = rec.recommendation_groups?.group_name ?? "";
 
   return (
     <View style={styles.banner}>
@@ -87,17 +117,25 @@ function DailyMatchBanner({ rec }) {
           <Text style={styles.bannerKicker}>★ Best match today</Text>
         </View>
         {groupName ? (
-          <Text style={styles.bannerGroup} numberOfLines={1}>in {groupName}</Text>
+          <Text style={styles.bannerGroup} numberOfLines={1}>
+            in {groupName}
+          </Text>
         ) : null}
       </View>
 
       <View style={styles.bannerBody}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.bannerTitle} numberOfLines={2}>{title}</Text>
-          {author ? <Text style={styles.bannerAuthor} numberOfLines={1}>{author}</Text> : null}
+          <Text style={styles.bannerTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          {author ? (
+            <Text style={styles.bannerAuthor} numberOfLines={1}>
+              {author}
+            </Text>
+          ) : null}
           {genres.length > 0 && (
             <View style={styles.bannerGenres}>
-              {genres.map(g => (
+              {genres.map((g) => (
                 <View key={g} style={styles.bannerGenrePill}>
                   <Text style={styles.bannerGenreText}>{g}</Text>
                 </View>
@@ -116,59 +154,80 @@ function DailyMatchBanner({ rec }) {
   );
 }
 
-
-const TABS = ['My circles', 'Joined'];
+const TABS = ["My circles", "Joined"];
 
 export function HomeScreen({ navigation }) {
   const { user } = useAuth();
   const [groups, setGroups] = useState([]);
   const [loadingGroups, setLoadingGroups] = useState(true);
   const [activeTab, setActiveTab] = useState(0);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [dailyMatch, setDailyMatch] = useState(undefined); // undefined=loading, null=none
+  const [username, setUsername] = useState('');
 
   const loadGroups = useCallback(async () => {
     if (!user?.id) return;
     setLoadingGroups(true);
     try {
-      const { data, error } = await supabase
-        .from('group_members')
-        .select(`
-          group_id,
-          role,
-          recommendation_groups (
-            id,
-            group_name,
-            vibe,
-            created_by,
-            is_active,
-            telegram_chat_id
-          )
-        `)
-        .eq('user_id', user.id);
+      const { data: memberRows, error: memberErr } = await supabase
+        .from("group_members")
+        .select("group_id, role")
+        .eq("user_id", user.id);
+      if (memberErr) throw memberErr;
 
-      if (error) throw error;
+      const groupIds = (memberRows ?? [])
+        .map((r) => r.group_id)
+        .filter(Boolean);
+      if (groupIds.length === 0) {
+        setGroups([]);
+        return;
+      }
 
-      const valid = (data ?? [])
-        .filter(r => r.recommendation_groups?.is_active)
-        .map(r => ({ ...r.recommendation_groups, myRole: r.role }));
+      const { data: groupsRows, error: groupsErr } = await supabase
+        .from("recommendation_groups")
+        .select("id, group_name, vibe, created_by, is_active, telegram_chat_id")
+        .in("id", groupIds);
+      if (groupsErr) throw groupsErr;
 
-      // Intentar contar miembros por grupo (depende de RLS)
-      const ids = valid.map(g => g.id);
+      const roleByGroupId = {};
+      (memberRows ?? []).forEach((r) => {
+        if (r.group_id) roleByGroupId[r.group_id] = r.role;
+      });
+
+      const valid = (groupsRows ?? [])
+        .filter((g) => g?.is_active)
+        .map((g) => ({ ...g, myRole: roleByGroupId[g.id] }));
+
+      const ids = valid.map((g) => g.id).filter(Boolean);
       let counts = {};
       if (ids.length > 0) {
         const { data: md } = await supabase
-          .from('group_members')
-          .select('group_id')
-          .in('group_id', ids);
-        (md ?? []).forEach(m => {
+          .from("group_members")
+          .select("group_id")
+          .in("group_id", ids);
+        (md ?? []).forEach((m) => {
           counts[m.group_id] = (counts[m.group_id] ?? 0) + 1;
         });
       }
 
-      setGroups(valid.map(g => ({ ...g, memberCount: counts[g.id] ?? 1 })));
+      setGroups(valid.map((g) => ({ ...g, memberCount: counts[g.id] ?? 1 })));
+
+      // Fire-and-forget: trigger recompute for groups missing recommendations
+      ;(async () => {
+        for (const gId of groupIds) {
+          const { data: existing } = await supabase
+            .from("group_recommendations")
+            .select("group_id")
+            .eq("group_id", gId)
+            .limit(1)
+            .maybeSingle();
+          if (!existing) {
+            triggerGroupRecommendations(gId).catch(() => {});
+          }
+        }
+      })();
     } catch (e) {
-      console.warn('loadGroups error:', e.message);
+      console.warn("loadGroups error:", e.message);
     } finally {
       setLoadingGroups(false);
     }
@@ -178,46 +237,120 @@ export function HomeScreen({ navigation }) {
     if (!user?.id) return;
     try {
       const { data: memberRows } = await supabase
-        .from('group_members')
-        .select('group_id')
-        .eq('user_id', user.id);
-      const groupIds = (memberRows ?? []).map(r => r.group_id).filter(Boolean);
-      if (!groupIds.length) { setDailyMatch(null); return; }
+        .from("group_members")
+        .select("group_id")
+        .eq("user_id", user.id);
+      const groupIds = (memberRows ?? [])
+        .map((r) => r.group_id)
+        .filter(Boolean);
+      if (!groupIds.length) {
+        setDailyMatch(null);
+        return;
+      }
 
-      const { data, error } = await supabase
-        .from('group_recommendations')
-        .select(`
-          final_score,
-          rank,
-          generated_at,
-          recommendation_groups (group_name),
-          books (nombre_libro, autor, genero)
-        `)
-        .eq('rank', 1)
-        .in('group_id', groupIds)
-        .order('final_score', { ascending: false })
-        .order('generated_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      let bestRec = null;
+      try {
+        const { data: rec, error } = await supabase
+          .from("group_recommendations")
+          .select("group_id, book_id, final_score, rank, generated_at")
+          .eq("rank", 1)
+          .in("group_id", groupIds)
+          .order("final_score", { ascending: false })
+          .order("generated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (error) throw error;
+        bestRec = rec ?? null;
+      } catch (_) {
+        bestRec = null;
+      }
 
-      if (error) throw error;
-      setDailyMatch(data ?? null);
-    } catch {
+      if (!bestRec) {
+        const remoteResults = await Promise.all(
+          groupIds.map(async (id) => {
+            try {
+              const payload = await apiFetch(
+                `/api/groups/${id}/recommendations`,
+              );
+              const rec =
+                (payload?.recommendations ?? []).find(
+                  (item) => item.rank === 1,
+                ) ?? null;
+              return rec ? { ...rec, group_id: id } : null;
+            } catch {
+              return null;
+            }
+          }),
+        );
+        bestRec =
+          remoteResults
+            .filter(Boolean)
+            .sort((a, b) => (b?.final_score ?? 0) - (a?.final_score ?? 0))[0] ??
+          null;
+      }
+
+      if (!bestRec) {
+        setDailyMatch(null);
+        return;
+      }
+
+      const [groupRow, bookRow] = await Promise.all([
+        bestRec.recommendation_groups
+          ? Promise.resolve(bestRec.recommendation_groups)
+          : supabase
+              .from("recommendation_groups")
+              .select("group_name")
+              .eq("id", bestRec.group_id)
+              .maybeSingle()
+              .then(({ data }) => data ?? {}),
+        bestRec.books
+          ? Promise.resolve(bestRec.books)
+          : supabase
+              .from("books")
+              .select("nombre_libro, autor, genero")
+              .eq("id", bestRec.book_id)
+              .maybeSingle()
+              .then(({ data }) => data ?? {}),
+      ]);
+
+      setDailyMatch({
+        ...bestRec,
+        recommendation_groups: groupRow ?? {},
+        books: bookRow ?? {},
+      });
+    } catch (e) {
+      console.warn("loadDailyMatch error:", e.message);
       setDailyMatch(null);
     }
   }, [user?.id]);
 
-  useFocusEffect(useCallback(() => {
-    loadGroups();
-    loadDailyMatch();
-  }, [loadGroups, loadDailyMatch]));
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('user_preferences')
+      .select('username')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.username) setUsername(data.username);
+      });
+  }, [user?.id]);
 
-  const displayName = user?.name ?? 'Reader';
-  const createdByMe = groups.filter(g => g.created_by === user?.id);
-  const joinedGroups = groups.filter(g => g.created_by !== user?.id);
+  useFocusEffect(
+    useCallback(() => {
+      loadGroups();
+      loadDailyMatch();
+    }, [loadGroups, loadDailyMatch]),
+  );
+
+  const displayName = username || user?.email?.split('@')[0] || 'Reader';
+  const createdByMe = groups.filter((g) => g.created_by === user?.id);
+  const joinedGroups = groups.filter((g) => g.created_by !== user?.id);
   const activeList = activeTab === 0 ? createdByMe : joinedGroups;
   const filtered = search.trim()
-    ? activeList.filter(g => g.group_name?.toLowerCase().includes(search.toLowerCase()))
+    ? activeList.filter((g) =>
+        g.group_name?.toLowerCase().includes(search.toLowerCase()),
+      )
     : activeList;
 
   return (
@@ -229,13 +362,12 @@ export function HomeScreen({ navigation }) {
           <Text style={styles.h1}>Hey, {displayName} ✦</Text>
         </View>
         <View style={styles.headerRight}>
-          <NotificationsBell navigation={navigation} userId={user?.id} />
           <Pressable
             onPress={() => navigation.navigate(routes.Personality)}
             style={styles.profileBtn}
           >
             <Text style={styles.profileBtnText}>
-              {user?.name?.[0]?.toUpperCase() ?? '?'}
+              {user?.name?.[0]?.toUpperCase() ?? "?"}
             </Text>
           </Pressable>
         </View>
@@ -263,10 +395,15 @@ export function HomeScreen({ navigation }) {
         {TABS.map((tab, i) => (
           <Pressable
             key={tab}
-            onPress={() => { setActiveTab(i); setSearch(''); }}
+            onPress={() => {
+              setActiveTab(i);
+              setSearch("");
+            }}
             style={[styles.tab, activeTab === i && styles.tabActive]}
           >
-            <Text style={[styles.tabText, activeTab === i && styles.tabTextActive]}>
+            <Text
+              style={[styles.tabText, activeTab === i && styles.tabTextActive]}
+            >
               {tab}
             </Text>
           </Pressable>
@@ -293,11 +430,13 @@ export function HomeScreen({ navigation }) {
         {loadingGroups ? (
           <ActivityIndicator color={colors.purple} style={{ marginTop: 48 }} />
         ) : (
-          filtered.map(g => (
+          filtered.map((g) => (
             <GroupCard
               key={g.id}
               group={g}
-              onPress={() => navigation.navigate(routes.GroupDetail, { groupId: g.id })}
+              onPress={() =>
+                navigation.navigate(routes.GroupDetail, { groupId: g.id })
+              }
             />
           ))
         )}
@@ -337,12 +476,12 @@ const styles = StyleSheet.create({
     paddingTop: 26,
     paddingHorizontal: 22,
     paddingBottom: 18,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   profileBtn: {
@@ -350,33 +489,33 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     backgroundColor: colors.purple,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   profileBtnText: {
     fontSize: 15,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.cream,
   },
   kicker: {
     fontSize: 11,
-    color: 'rgba(22,16,46,0.5)',
+    color: "rgba(22,16,46,0.5)",
     letterSpacing: 1.6,
-    textTransform: 'uppercase',
-    fontWeight: '700',
+    textTransform: "uppercase",
+    fontWeight: "700",
   },
   h1: {
     marginTop: 4,
     fontSize: 32,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.ink,
     letterSpacing: -0.8,
   },
 
   // Search
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginHorizontal: 22,
     marginBottom: 14,
     backgroundColor: colors.white,
@@ -384,32 +523,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.08)',
+    borderColor: "rgba(22,16,46,0.08)",
     gap: 8,
   },
-  searchIcon: { width: 20, alignItems: 'center' },
-  searchIconText: { fontSize: 18, color: 'rgba(22,16,46,0.35)', fontWeight: '700' },
+  searchIcon: { width: 20, alignItems: "center" },
+  searchIconText: {
+    fontSize: 18,
+    color: "rgba(22,16,46,0.35)",
+    fontWeight: "700",
+  },
   searchInput: {
     flex: 1,
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.ink,
     padding: 0,
   },
 
   // Tabs
   tabs: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginHorizontal: 22,
     marginBottom: 16,
-    backgroundColor: 'rgba(22,16,46,0.06)',
+    backgroundColor: "rgba(22,16,46,0.06)",
     borderRadius: radii.pill,
     padding: 3,
   },
   tab: {
     flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: radii.pill,
   },
   tabActive: {
@@ -417,8 +560,8 @@ const styles = StyleSheet.create({
   },
   tabText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: 'rgba(22,16,46,0.5)',
+    fontWeight: "800",
+    color: "rgba(22,16,46,0.5)",
     letterSpacing: 0.2,
   },
   tabTextActive: {
@@ -434,37 +577,37 @@ const styles = StyleSheet.create({
 
   // Group card
   circleCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     backgroundColor: colors.white,
     borderRadius: radii.xl,
     padding: 14,
     borderWidth: 1,
-    borderColor: 'rgba(22,16,46,0.06)',
+    borderColor: "rgba(22,16,46,0.06)",
   },
   circleBadge: {
     width: 48,
     height: 48,
     borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   circleBadgeText: {
     color: colors.ink,
-    fontWeight: '900',
+    fontWeight: "900",
     fontSize: 17,
     letterSpacing: -0.4,
   },
   circleInfo: { flex: 1, gap: 4 },
   circleName: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.ink,
     letterSpacing: -0.3,
   },
-  vibeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  vibeRow: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
   vibePill: {
     borderRadius: radii.pill,
     paddingVertical: 3,
@@ -473,32 +616,32 @@ const styles = StyleSheet.create({
   },
   vibePillText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     color: colors.purple,
     letterSpacing: 0.2,
   },
-  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   circleMeta: {
     fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(22,16,46,0.5)',
+    fontWeight: "700",
+    color: "rgba(22,16,46,0.5)",
   },
   tgBadge: {
     borderRadius: radii.pill,
     paddingVertical: 2,
     paddingHorizontal: 7,
-    backgroundColor: 'rgba(41,182,246,0.15)',
+    backgroundColor: "rgba(41,182,246,0.15)",
   },
   tgText: {
     fontSize: 9,
-    fontWeight: '900',
-    color: '#0288D1',
+    fontWeight: "900",
+    color: "#0288D1",
     letterSpacing: 0.5,
   },
   circleArrow: {
     fontSize: 22,
-    fontWeight: '900',
-    color: 'rgba(22,16,46,0.3)',
+    fontWeight: "900",
+    color: "rgba(22,16,46,0.3)",
     flexShrink: 0,
   },
 
@@ -510,8 +653,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bannerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
   },
   bannerKickerPill: {
@@ -522,24 +665,24 @@ const styles = StyleSheet.create({
   },
   bannerKicker: {
     fontSize: 10,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.ink,
     letterSpacing: 0.6,
   },
   bannerGroup: {
     fontSize: 11,
-    fontWeight: '700',
-    color: 'rgba(251,246,235,0.5)',
+    fontWeight: "700",
+    color: "rgba(251,246,235,0.5)",
     flex: 1,
   },
   bannerBody: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     gap: 14,
   },
   bannerTitle: {
     fontSize: 20,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.cream,
     letterSpacing: -0.4,
     lineHeight: 24,
@@ -547,13 +690,13 @@ const styles = StyleSheet.create({
   bannerAuthor: {
     marginTop: 4,
     fontSize: 13,
-    fontStyle: 'italic',
-    fontWeight: '600',
-    color: 'rgba(251,246,235,0.6)',
+    fontStyle: "italic",
+    fontWeight: "600",
+    color: "rgba(251,246,235,0.6)",
   },
   bannerGenres: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
     marginTop: 10,
   },
@@ -561,66 +704,66 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     paddingVertical: 4,
     paddingHorizontal: 10,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: "rgba(255,255,255,0.1)",
   },
   bannerGenreText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: 'rgba(251,246,235,0.8)',
+    fontWeight: "800",
+    color: "rgba(251,246,235,0.8)",
     letterSpacing: 0.3,
   },
   bannerScoreWrap: {
-    alignItems: 'center',
+    alignItems: "center",
     flexShrink: 0,
   },
   bannerScoreNum: {
     fontSize: 48,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.lime,
     letterSpacing: -2,
     lineHeight: 50,
   },
   bannerScorePct: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: "900",
     color: colors.lime,
     marginTop: -8,
   },
   bannerScoreLabel: {
     fontSize: 9,
-    fontWeight: '800',
-    color: 'rgba(251,246,235,0.4)',
+    fontWeight: "800",
+    color: "rgba(251,246,235,0.4)",
     letterSpacing: 1,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     marginTop: 2,
   },
   bannerEmpty: {
     borderRadius: radii.xl,
     padding: 18,
-    backgroundColor: 'rgba(22,16,46,0.04)',
+    backgroundColor: "rgba(22,16,46,0.04)",
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(22,16,46,0.12)',
-    alignItems: 'center',
+    borderStyle: "dashed",
+    borderColor: "rgba(22,16,46,0.12)",
+    alignItems: "center",
     gap: 6,
   },
   bannerEmptyIcon: {
     fontSize: 20,
-    color: 'rgba(22,16,46,0.2)',
+    color: "rgba(22,16,46,0.2)",
   },
   bannerEmptyText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: 'rgba(22,16,46,0.4)',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "rgba(22,16,46,0.4)",
+    textAlign: "center",
     lineHeight: 19,
   },
 
   // Action cards
   actionCards: { gap: 10, marginTop: 4 },
   createCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     backgroundColor: colors.ink,
     borderRadius: radii.xl,
@@ -631,32 +774,37 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 15,
     backgroundColor: colors.lime,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
-  createIconText: { fontSize: 20, color: colors.ink, fontWeight: '900' },
-  createText: { flex: 1, fontSize: 15, fontWeight: '800', color: colors.cream },
+  createIconText: { fontSize: 20, color: colors.ink, fontWeight: "900" },
+  createText: { flex: 1, fontSize: 15, fontWeight: "800", color: colors.cream },
   joinCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     backgroundColor: colors.cream,
     borderRadius: radii.xl,
     padding: 14,
     borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: 'rgba(22,16,46,0.2)',
+    borderStyle: "dashed",
+    borderColor: "rgba(22,16,46,0.2)",
   },
   joinIcon: {
     width: 48,
     height: 48,
     borderRadius: 15,
     backgroundColor: colors.mist,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
   },
   joinIconText: { fontSize: 22, color: colors.purple },
-  joinText: { flex: 1, fontSize: 15, fontWeight: '800', color: 'rgba(22,16,46,0.55)' },
+  joinText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "800",
+    color: "rgba(22,16,46,0.55)",
+  },
 });

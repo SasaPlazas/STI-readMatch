@@ -31,24 +31,46 @@ class SupabaseRepository:
 
     def fetch_group_members(self, group_id: str) -> list[dict[str, Any]]:
         try:
-            response = (
+            members_response = (
                 self.client.table("group_members")
-                .select(
-                    "user_id, role, influence_weight, user_preferences(favorite_genres, depth_preference, openness_score)"
-                )
+                .select("user_id, role, influence_weight")
                 .eq("group_id", group_id)
                 .execute()
             )
-            return response.data or []
+            members = members_response.data or []
+            user_ids = [row.get("user_id") for row in members if row.get("user_id")]
+            if not user_ids:
+                return members
+
+            preferences_response = (
+                self.client.table("user_preferences")
+                .select("user_id, favorite_genres, narrative_styles, group_values, depth_preference, openness_score, favorite_authors, preferred_languages, preferred_complexity")
+                .in_("user_id", user_ids)
+                .execute()
+            )
+            preferences_rows = preferences_response.data or []
+            preferences_by_user_id = {row.get("user_id"): row for row in preferences_rows if row.get("user_id")}
+
+            return [
+                {
+                    **member,
+                    "user_preferences": preferences_by_user_id.get(member.get("user_id")) or {},
+                }
+                for member in members
+            ]
         except Exception as exc:
             self._raise_supabase_error("fetch_group_members", exc)
             return []
 
-    def fetch_books(self, limit: int = 50) -> list[dict[str, Any]]:
+    def fetch_books(self, limit: int = 1000) -> list[dict[str, Any]]:
         try:
             response = (
                 self.client.table("books")
-                .select("id, nombre_libro, autor, genero, complexity")
+                .select(
+                    "id, nombre_libro, autor, genero, "
+                    "complejidad_narrativa, trope, tags, "
+                    "popularity_score, content_vector, idiomas"
+                )
                 .limit(limit)
                 .execute()
             )
@@ -75,7 +97,7 @@ class SupabaseRepository:
             response = (
                 self.client.table("group_recommendations")
                 .select(
-                    "group_id, book_id, rank, final_score, explanation, generated_at, books(nombre_libro, autor, genero)"
+                    "group_id, book_id, rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, generated_at, books(nombre_libro, autor, genero)"
                 )
                 .eq("group_id", group_id)
                 .order("rank")

@@ -1,48 +1,8 @@
-import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { supabase } from '../lib/supabase';
-import { colors, radii } from '../theme/tokens';
-import { routes } from '../navigation/routes';
+import { Pressable, StyleSheet, Text } from "react-native";
+import { colors, radii } from "../theme/tokens";
+import { routes } from "../navigation/routes";
 
 export function NotificationsBell({ navigation, userId, light = false }) {
-  const [unread, setUnread] = useState(0);
-
-  useFocusEffect(useCallback(() => {
-    if (!userId) return;
-    let cancelled = false;
-    (async () => {
-      const skipKey = 'rm_skip_notifications';
-      try {
-        if (typeof window !== 'undefined' && window.localStorage?.getItem(skipKey) === '1') {
-          return;
-        }
-      } catch (_) {}
-
-      try {
-        const { count, error } = await supabase
-          .from('notifications')
-          .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId)
-          .eq('is_read', false);
-
-        if (error) {
-          try {
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem(skipKey, '1');
-            }
-          } catch (_) {}
-          return;
-        }
-
-        if (!cancelled) setUnread(count ?? 0);
-      } catch (_) {}
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [userId]));
-
   return (
     <Pressable
       onPress={() => navigation.navigate(routes.Notifications)}
@@ -50,11 +10,6 @@ export function NotificationsBell({ navigation, userId, light = false }) {
       hitSlop={8}
     >
       <Text style={styles.icon}>🔔</Text>
-      {unread > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unread > 9 ? '9+' : String(unread)}</Text>
-        </View>
-      )}
     </Pressable>
   );
 }
@@ -64,29 +19,12 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: radii.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   btnLight: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: "rgba(255,255,255,0.12)",
     borderRadius: 12,
   },
   icon: { fontSize: 18 },
-  badge: {
-    position: 'absolute',
-    top: 2,
-    right: 2,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: colors.coral,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-  },
-  badgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#fff',
-  },
 });

@@ -23,6 +23,7 @@ import {
 } from "../utils/userStorage";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
+import { supabase } from "../lib/supabase";
 
 const ITEM_HEIGHT = 128; // height of each book row including gap
 
@@ -116,6 +117,7 @@ export function OnbBehaviorScreen({ navigation }) {
   const [bookQuery, setBookQuery] = useState("");
   const [bookResults, setBookResults] = useState([]);
   const [bookSearching, setBookSearching] = useState(false);
+  const [bookNoResults, setBookNoResults] = useState(false);
   const [freq, setFreq] = useState("weekly");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -124,7 +126,37 @@ export function OnbBehaviorScreen({ navigation }) {
 
   const canContinue = topBooks.length >= 1 && !saving;
 
+  async function fetchFromOpenLibrary() {
+    if (bookQuery.length < 3) return;
+    setBookSearching(true);
+    setBookNoResults(false);
+    try {
+      const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(bookQuery)}&limit=8&fields=key,title,author_name,subject,first_publish_year`;
+      const res = await fetch(url);
+      const data = await res.json();
+      const alreadyKeys = new Set(topBooks.map((b) => b.ol_key));
+      setBookResults(
+        (data.docs ?? [])
+          .filter((d) => d.title && !alreadyKeys.has(d.key))
+          .map((d) => ({
+            ol_key: d.key,
+            title: d.title,
+            author: (d.author_name ?? [])[0] ?? "Unknown",
+            genre: (d.subject ?? [])[0] ?? null,
+            description: null,
+            tags: [],
+          }))
+          .slice(0, 8)
+      );
+    } catch {
+      setBookResults([]);
+    } finally {
+      setBookSearching(false);
+    }
+  }
+
   useEffect(() => {
+    setBookNoResults(false);
     if (bookQuery.length < 3) {
       setBookResults([]);
       setBookSearching(false);
@@ -133,23 +165,28 @@ export function OnbBehaviorScreen({ navigation }) {
     setBookSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(bookQuery)}&limit=8&fields=key,title,author_name,subject,first_publish_year`;
-        const res = await fetch(url);
-        const data = await res.json();
         const alreadyKeys = new Set(topBooks.map((b) => b.ol_key));
-        setBookResults(
-          (data.docs ?? [])
-            .filter((d) => d.title && !alreadyKeys.has(d.key))
-            .map((d) => ({
-              ol_key: d.key,
-              title: d.title,
-              author: (d.author_name ?? [])[0] ?? "Unknown",
-              genre: (d.subject ?? [])[0] ?? null,
-              description: null,
-              tags: [],
-            }))
-            .slice(0, 8)
-        );
+        const { data } = await supabase
+          .from("books")
+          .select("id, nombre_libro, autor, genero, complejidad_narrativa, cover_url")
+          .or(`nombre_libro.ilike.%${bookQuery.trim()}%,autor.ilike.%${bookQuery.trim()}%`)
+          .limit(8);
+        const results = (data ?? [])
+          .filter((row) => !alreadyKeys.has(String(row.id)))
+          .map((row) => ({
+            ol_key: String(row.id),
+            title: row.nombre_libro,
+            author: row.autor,
+            genre: row.genero,
+            description: null,
+            tags: [],
+          }));
+        if (results.length === 0) {
+          setBookNoResults(true);
+          setBookResults([]);
+        } else {
+          setBookResults(results);
+        }
       } catch {
         setBookResults([]);
       } finally {
@@ -350,6 +387,18 @@ export function OnbBehaviorScreen({ navigation }) {
                 ))}
               </View>
             )}
+
+            {/* No results fallback */}
+            {bookNoResults && !bookSearching && (
+              <View style={styles.noResultsBox}>
+                <Text style={styles.noResultsText}>
+                  No encontramos ese libro aún — sigue buscando o agrega uno nuevo
+                </Text>
+                <Pressable onPress={fetchFromOpenLibrary} style={styles.fallbackBtn}>
+                  <Text style={styles.fallbackBtnText}>Buscar en Open Library</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
@@ -542,6 +591,21 @@ const styles = StyleSheet.create({
     fontSize: 13, fontWeight: "600", color: "rgba(22,16,46,0.5)",
     textAlign: "center", lineHeight: 18,
   },
+  noResultsBox: {
+    marginTop: 6, padding: 14, borderRadius: 14,
+    backgroundColor: "rgba(124,91,255,0.06)",
+    borderWidth: 1, borderColor: "rgba(124,91,255,0.15)",
+    alignItems: "center", gap: 10,
+  },
+  noResultsText: {
+    fontSize: 12, fontWeight: "600", color: "rgba(22,16,46,0.6)",
+    textAlign: "center", lineHeight: 17,
+  },
+  fallbackBtn: {
+    borderRadius: radii.pill, paddingVertical: 8, paddingHorizontal: 16,
+    backgroundColor: colors.purple,
+  },
+  fallbackBtnText: { fontSize: 12, fontWeight: "900", color: colors.cream },
   hintBox: {
     marginTop: 10, padding: 12, borderRadius: radii.md,
     backgroundColor: "rgba(124,91,255,0.08)", flexDirection: "row",
