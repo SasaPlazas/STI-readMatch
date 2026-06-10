@@ -76,7 +76,7 @@ function MemberCard({ member }) {
   );
 }
 
-function RecCard({ rec, index }) {
+function RecCard({ rec, index, onPress }) {
   const book = rec.books ?? rec.book ?? {};
   const title = book.nombre_libro ?? book.title ?? "—";
   const author = book.autor ?? book.author ?? "";
@@ -99,7 +99,7 @@ function RecCard({ rec, index }) {
   ];
 
   return (
-    <View style={styles.recCard}>
+    <Pressable onPress={onPress} style={styles.recCard}>
       <View style={[styles.rankPill, isTop && styles.rankPillTop]}>
         <Text style={[styles.rankText, isTop && styles.rankTextTop]}>
           #{rec.rank ?? index + 1}
@@ -145,7 +145,7 @@ function RecCard({ rec, index }) {
         </Text>
         <Text style={[styles.scorePct, isTop && styles.scorePctTop]}>%</Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -483,7 +483,12 @@ export function GroupDetailScreen({ navigation, route }) {
           ) : (
             <View style={styles.recList}>
               {recs.map((rec, i) => (
-                <RecCard key={rec.rank ?? i} rec={rec} index={i} />
+                <RecCard
+                  key={rec.rank ?? i}
+                  rec={rec}
+                  index={i}
+                  onPress={() => navigation.navigate(routes.Book, { bookId: rec.book_id, groupId: group.id })}
+                />
               ))}
             </View>
           )}
