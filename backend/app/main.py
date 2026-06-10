@@ -16,7 +16,7 @@ from .models import (
     TelegramRecommendRequest,
 )
 from .recommender import score_group_books
-from .reveal import assign_archetype, generate_reveal_text
+from .reveal import generate_reveal, ARCHETYPE_PAIRS
 from .supabase_service import SupabaseRepository
 
 
@@ -165,11 +165,13 @@ async def get_group_recommendations(group_id: str) -> dict[str, Any]:
 @app.post("/api/reveal")
 async def reveal_profile(payload: RevealRequest) -> dict[str, Any]:
     preferences = payload.preferences or {}
-    archetype = payload.archetype or assign_archetype(preferences)
-    reveal_text = await generate_reveal_text(archetype, preferences)
+    result = await generate_reveal(preferences)
+    archetype = result["archetype"]
+    pairs = ARCHETYPE_PAIRS.get(archetype, [])
     return {
         "archetype": archetype,
-        "reveal_text": reveal_text,
+        "reveal_text": result["reveal_text"],
+        "pairs": pairs,
     }
 
 

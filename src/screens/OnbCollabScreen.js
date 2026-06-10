@@ -84,34 +84,29 @@ export function OnbCollabScreen({ navigation }) {
     }
     setFriendSearching(true);
     const t = setTimeout(async () => {
+      const q = friendQuery.trim();
       try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('search_users', {
-          query: friendQuery.trim(),
-        });
-        if (rpcErr) throw rpcErr;
-        setFriendResults(
-          (rpcData ?? []).filter(
-            (r) => !selectedFriendsRef.current.some((f) => f.user_id === r.user_id),
-          ),
-        );
-      } catch (_rpcErr) {
-        try {
-          const { data: fallback } = await supabase
-            .from('user_preferences')
-            .select('user_id, username')
-            .ilike('username', `%${friendQuery.trim()}%`)
-            .limit(15);
-          const mapped = (fallback ?? []).map((r) => ({
-            user_id: r.user_id,
-            username: r.username ?? '',
-            email: '',
-          })).filter(
-            (r) => !selectedFriendsRef.current.some((f) => f.user_id === r.user_id),
-          );
-          setFriendResults(mapped);
-        } catch (_) {
-          setFriendResults([]);
+        const { data, error } = await supabase.rpc('search_users', { query: q });
+        if (error) {
+          console.warn('[search_users] RPC error:', error.message, error.code);
+          throw error;
         }
+        console.log('[search_users] results:', data?.length ?? 0);
+        const alreadySelectedIds = new Set(selectedFriendsRef.current.map((f) => f.user_id));
+        setFriendResults((data ?? []).filter((r) => !alreadySelectedIds.has(r.user_id)));
+      } catch (_) {
+        const { data: fallback } = await supabase
+          .from('user_preferences')
+          .select('user_id, username')
+          .ilike('username', `%${q}%`)
+          .limit(15);
+        console.log('[search_users] fallback results:', fallback?.length ?? 0);
+        const alreadySelectedIds = new Set(selectedFriendsRef.current.map((f) => f.user_id));
+        setFriendResults(
+          (fallback ?? [])
+            .map((r) => ({ user_id: r.user_id, username: r.username ?? '', email: '' }))
+            .filter((r) => !alreadySelectedIds.has(r.user_id)),
+        );
       } finally {
         setFriendSearching(false);
       }

@@ -169,39 +169,47 @@ export function GroupDetailScreen({ navigation, route }) {
   const loadGroupData = useCallback(async ({ skipTrigger = false } = {}) => {
     if (!groupId) return;
     try {
-      const [{ data: g }, { data: memberRows }, { data: recRows }] =
-        await Promise.all([
-          supabase
-            .from("recommendation_groups")
-            .select("id, group_name, vibe, telegram_chat_id, created_by, join_code")
-            .eq("id", groupId)
-            .maybeSingle(),
-          supabase
-            .from("group_members")
-            .select("user_id, role")
-            .eq("group_id", groupId),
-          supabase
-            .from("group_recommendations")
-            .select(
-              "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id, generated_at",
-            )
-            .eq("group_id", groupId)
-            .order("rank", { ascending: true })
-            .limit(3),
-        ]);
+      const [{ data: g }, { data: recRows }] = await Promise.all([
+        supabase
+          .from("recommendation_groups")
+          .select("id, group_name, vibe, telegram_chat_id, created_by, join_code")
+          .eq("id", groupId)
+          .maybeSingle(),
+        supabase
+          .from("group_recommendations")
+          .select(
+            "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id, generated_at",
+          )
+          .eq("group_id", groupId)
+          .order("rank", { ascending: true })
+          .limit(3),
+      ]);
 
-      const userIds = (memberRows ?? [])
-        .map((row) => row.user_id)
-        .filter(Boolean);
+      const { data: memberRows } = await supabase
+        .from("group_members")
+        .select("user_id, role")
+        .eq("group_id", groupId);
+
+      const userIds = (memberRows ?? []).map((r) => r.user_id).filter(Boolean);
       let prefsByUserId = {};
       if (userIds.length > 0) {
-        const { data: preferenceRows } = await supabase
+        const { data: prefRows, error: prefErr } = await supabase
           .from("user_preferences")
           .select("user_id, username, archetype")
           .in("user_id", userIds);
-        prefsByUserId = Object.fromEntries(
-          (preferenceRows ?? []).map((row) => [row.user_id, row]),
-        );
+        if (prefErr) {
+          console.warn("user_preferences fetch error:", prefErr.message);
+        }
+        const rows = prefRows ?? [];
+        if (rows.length === 0 && userIds.length > 0) {
+          const { data: ownPrefs } = await supabase
+            .from("user_preferences")
+            .select("user_id, username, archetype")
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (ownPrefs) rows.push(ownPrefs);
+        }
+        prefsByUserId = Object.fromEntries(rows.map((row) => [row.user_id, row]));
       }
 
       const nextMembers = (memberRows ?? []).map((member) => ({
@@ -299,29 +307,29 @@ export function GroupDetailScreen({ navigation, route }) {
     }
     setInviteSearching(true);
     const t = setTimeout(async () => {
+      const q = inviteQuery.trim();
       try {
-        const { data: rpcData, error: rpcErr } = await supabase.rpc('search_users', {
-          query: inviteQuery.trim(),
-        });
-        if (rpcErr) throw rpcErr;
-        const currentIds = new Set(members.map((m) => m.user_id));
-        setInviteResults((rpcData ?? []).filter((r) => !currentIds.has(r.user_id)));
-      } catch (_) {
-        try {
-          const { data: fallback } = await supabase
-            .from('user_preferences')
-            .select('user_id, username')
-            .ilike('username', `%${inviteQuery.trim()}%`)
-            .limit(10);
-          const currentIds = new Set(members.map((m) => m.user_id));
-          setInviteResults(
-            (fallback ?? [])
-              .map((r) => ({ user_id: r.user_id, username: r.username ?? '', email: '' }))
-              .filter((r) => !currentIds.has(r.user_id)),
-          );
-        } catch (_) {
-          setInviteResults([]);
+        const { data, error } = await supabase.rpc('search_users', { query: q });
+        if (error) {
+          console.warn('[search_users] RPC error:', error.message, error.code);
+          throw error;
         }
+        console.log('[search_users] results:', data?.length ?? 0);
+        const currentIds = new Set(members.map((m) => m.user_id));
+        setInviteResults((data ?? []).filter((r) => !currentIds.has(r.user_id)));
+      } catch (_) {
+        const { data: fallback } = await supabase
+          .from('user_preferences')
+          .select('user_id, username')
+          .ilike('username', `%${q}%`)
+          .limit(15);
+        console.log('[search_users] fallback results:', fallback?.length ?? 0);
+        const currentIds = new Set(members.map((m) => m.user_id));
+        setInviteResults(
+          (fallback ?? [])
+            .map((r) => ({ user_id: r.user_id, username: r.username ?? '', email: '' }))
+            .filter((r) => !currentIds.has(r.user_id)),
+        );
       } finally {
         setInviteSearching(false);
       }

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -163,6 +163,7 @@ export function HomeScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState(0);
   const [search, setSearch] = useState("");
   const [dailyMatch, setDailyMatch] = useState(undefined); // undefined=loading, null=none
+  const [username, setUsername] = useState('');
 
   const loadGroups = useCallback(async () => {
     if (!user?.id) return;
@@ -323,6 +324,18 @@ export function HomeScreen({ navigation }) {
     }
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('user_preferences')
+      .select('username')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.username) setUsername(data.username);
+      });
+  }, [user?.id]);
+
   useFocusEffect(
     useCallback(() => {
       loadGroups();
@@ -330,7 +343,7 @@ export function HomeScreen({ navigation }) {
     }, [loadGroups, loadDailyMatch]),
   );
 
-  const displayName = user?.name ?? "Reader";
+  const displayName = username || user?.email?.split('@')[0] || 'Reader';
   const createdByMe = groups.filter((g) => g.created_by === user?.id);
   const joinedGroups = groups.filter((g) => g.created_by !== user?.id);
   const activeList = activeTab === 0 ? createdByMe : joinedGroups;

@@ -6,7 +6,7 @@ import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
-import { assignArchetype, generateReveal } from '../services/revealService';
+import { generateReveal } from '../services/revealService';
 
 const CHIP_PALETTE = [colors.purple, colors.coral, colors.lime, colors.lavender, '#E8E0FF', colors.cream];
 const CHIP_DARK = [false, false, false, false, false, true];
@@ -14,30 +14,10 @@ const CHIP_DARK = [false, false, false, false, false, true];
 const DEPTH_SCORE = { light: '0.35', balanced: '0.62', deep: '0.85', experimental: '0.95' };
 const GROUP_FIT = ['0.60', '0.72', '0.84', '0.91', '0.96'];
 
-const ARCHETYPE_AFFINITY = {
-  'The Philosopher': '0.88',
-  'The Explorer': '0.91',
-  'The Romantic': '0.84',
-  'Dark Academic': '0.87',
-  'The Visionary': '0.89',
-  'The Storyteller': '0.86',
-  'The Cozy Reader': '0.82',
-  'The Chronicler': '0.85',
-};
-
-const ARCHETYPE_PAIRS = {
-  'The Philosopher': ['The Explorer', 'Dark Academic', 'The Chronicler'],
-  'The Explorer': ['The Philosopher', 'The Visionary', 'The Chronicler'],
-  'The Romantic': ['The Cozy Reader', 'The Storyteller', 'The Explorer'],
-  'Dark Academic': ['The Philosopher', 'The Chronicler', 'The Visionary'],
-  'The Visionary': ['The Explorer', 'The Philosopher', 'Dark Academic'],
-  'The Storyteller': ['The Romantic', 'The Cozy Reader', 'The Explorer'],
-  'The Cozy Reader': ['The Romantic', 'The Storyteller', 'The Explorer'],
-  'The Chronicler': ['The Philosopher', 'Dark Academic', 'The Explorer'],
-};
+const ARCHETYPE_AFFINITY = {};
 
 const FALLBACK_TEXT =
-  'You bring a unique perspective to every reading circle, enriching discussions with your distinctive voice. Your groups thrive because of the depth and authenticity you contribute.';
+  'Tu perfil lector es único y aporta una perspectiva que enriquece cualquier círculo de lectura. Los grupos crecen gracias a la profundidad y autenticidad que traes a cada conversación.';
 
 function SkeletonBox({ width, height, radius = 12, style }) {
   const shimmer = useRef(new Animated.Value(0.35)).current;
@@ -99,6 +79,7 @@ export function OnbRevealScreen({ navigation }) {
   const [revealText, setRevealText] = useState('');
   const [prefs, setPrefs] = useState(null);
   const [completing, setCompleting] = useState(false);
+  const [pairs, setPairs] = useState([]);
 
   const anim1 = useRef(new Animated.Value(0)).current;
   const anim2 = useRef(new Animated.Value(0)).current;
@@ -117,24 +98,31 @@ export function OnbRevealScreen({ navigation }) {
 
     async function load() {
       let p = {};
-      let arch = 'The Explorer';
+      let arch = 'El Explorador';
+      let text = FALLBACK_TEXT;
+      let pairsFromBackend = [];
 
       try {
         const { data } = await supabase
           .from('user_preferences')
-          .select('narrative_styles, favorite_genres, depth_preference, openness_score, group_values, top_books')
+          .select('narrative_styles, favorite_genres, depth_preference, openness_score, group_values, top_books, favorite_authors, preferred_languages, content_preferences')
           .eq('user_id', user?.id)
           .maybeSingle();
         p = data ?? {};
-        arch = assignArchetype(p);
       } catch (_) {}
 
       if (cancelled) return;
 
-      let text = FALLBACK_TEXT;
       try {
-        text = await generateReveal(arch, p);
-      } catch (_) {}
+        const result = await generateReveal(p);
+        arch = result.archetype;
+        text = result.reveal_text;
+        pairsFromBackend = result.pairs;
+      } catch (_) {
+        arch = 'El Explorador';
+        text = FALLBACK_TEXT;
+        pairsFromBackend = [];
+      }
 
       if (cancelled) return;
 
@@ -150,6 +138,7 @@ export function OnbRevealScreen({ navigation }) {
       setPrefs(p);
       setArchetype(arch);
       setRevealText(text);
+      setPairs(pairsFromBackend);
       setLoading(false);
       runEntrance();
     }
@@ -177,7 +166,6 @@ export function OnbRevealScreen({ navigation }) {
   const openness = `${prefs?.openness_score ?? 0}%`;
   const groupFit = GROUP_FIT[Math.min(prefs?.group_values?.length ?? 0, 4)];
   const affinity = ARCHETYPE_AFFINITY[archetype] ?? '0.85';
-  const pairs = ARCHETYPE_PAIRS[archetype] ?? ['The Explorer', 'The Philosopher', 'The Chronicler'];
 
   const parts = archetype.split(' ');
   const archetypeFirst = parts[0] ?? '';
