@@ -67,6 +67,15 @@ The `completedOnboarding` flag is stored in Supabase `user_metadata` and control
 
 `backend/app/main.py` — FastAPI service deployed on Render at `https://sti-readmatch.onrender.com` (defined in `backend/render.yaml`).
 
+Key backend modules:
+- `backend/app/models.py` — Pydantic request/response models (`RecommendationRequest`, `RevealRequest`, `TelegramRecommendRequest`, `TelegramExplainRequest`, `HealthResponse`)
+- `backend/app/supabase_service.py` — `SupabaseRepository` class; all Supabase reads/writes from the backend go through this class
+- `backend/app/recommender.py` — group scoring algorithm (cosine similarity)
+- `backend/app/reveal.py` — archetype assignment and AI text generation
+- `backend/app/config.py` — `Settings` dataclass loaded from environment via `dotenv`
+
+API endpoints:
+- `GET /health/supabase` — checks Supabase connectivity and table access
 - `POST /api/recommendations/recompute` — runs the scoring algorithm and persists results to `group_recommendations`
 - `GET /api/groups/{group_id}/recommendations` — returns stored recommendations
 - `POST /api/reveal` — assigns a reader archetype and generates an AI-written reveal text
@@ -81,6 +90,15 @@ The `completedOnboarding` flag is stored in Supabase `user_metadata` and control
 `backend/app/reveal.py` assigns reader archetypes (The Philosopher, The Explorer, Dark Academic, etc.) by rule matching, then calls the Anthropic API to generate personalized text. Falls back to a template string if `ANTHROPIC_API_KEY` is not set.
 
 `src/lib/api.js` wraps all frontend→backend calls with a 30 s timeout and JSON error unwrapping. Use `apiFetch(path, options)` for any backend call. `src/utils/userStorage.js` calls `triggerGroupRecommendations()` after group creation/join.
+
+### Dual algorithm implementations
+
+There are two parallel implementations of the recommendation algorithm:
+
+- **`src/utils/recommendations.js`** — frontend-only reference implementation that operates on `sample.js` mock data. Not connected to the backend or Supabase. Used only for UI scaffolding and offline development.
+- **`backend/app/recommender.py`** — the production algorithm that runs server-side and persists results to `group_recommendations` in Supabase.
+
+Similarly, archetype assignment logic exists in both `src/services/revealService.js` (`assignArchetype`) and `backend/app/reveal.py` (`assign_archetype`). The frontend copy is used for local preview; the backend version produces the persisted reveal result.
 
 ### Environment variables
 
@@ -97,11 +115,13 @@ The `completedOnboarding` flag is stored in Supabase `user_metadata` and control
 - `ANTHROPIC_MODEL` — defaults to `claude-haiku-4-5`
 - `CORS_ORIGINS` — comma-separated list; defaults to Render URL + common local ports
 
+`src/config/secrets.js` is gitignored and must never be committed — it holds local dev secrets only.
+
 ### Design system
 
 `src/theme/tokens.js` defines all colors, border radii, and spacing. Always use tokens rather than raw values. Key color names: `purple`, `violet`, `lime`, `coral`, `cream`, `ink`, `lavender`.
 
-Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`.
+Reusable components in `src/components/`: `RMButton` (variants: primary/dark/ghost), `Avatar`, `BookCover`, `Ring` (circular score indicator), `Pill`, `Screen` (safe-area wrapper), `TopBar`. Desktop-specific shell components live in `src/components/desktop/`.
 
 ### Route names
 
