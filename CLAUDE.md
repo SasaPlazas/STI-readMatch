@@ -20,7 +20,12 @@ uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ```bash
-# Install backend dependencies (Python venv is at backend/.venv/)
+# Activate the Python venv (backend/.venv/) and install dependencies
+# Windows:
+backend\.venv\Scripts\activate
+# macOS/Linux:
+source backend/.venv/bin/activate
+
 pip install -r backend/requirements.txt
 ```
 
@@ -41,6 +46,10 @@ index.js → App.js → AuthProvider + NavigationContainer + AppNavigator
 - **AuthStack**: Splash → SignIn → CreateAccount → 5 onboarding screens (Identity, Behavior, Personality, Collab, Reveal)
 - **AppStack**: Home, Book, Explain, Personality, CreateGroup, JoinGroup, GroupDetail, GroupPreview, Invite, GroupSettings, Sync
 
+Three screen files (`VoteScreen.js`, `NotificationsScreen.js`, `CompatibilityScreen.js`) exist in `src/screens/` but are **not registered** in `routes.js` or any navigator — they are works-in-progress, not yet reachable.
+
+The root-level `screens/` directory (`.jsx` files like `01-splash.jsx`, `02a-onb-identity.jsx`) contains **design prototypes only** — not the running app code. All active screens are under `src/screens/`.
+
 ### State management
 
 `src/context/AuthContext.js` is the sole global state provider. It wraps Supabase auth — `session` is the raw Supabase session and `user` is derived from it (`{ id, email, name, completedOnboarding }`). All screens consume this via `useAuth()`.
@@ -57,13 +66,15 @@ The `completedOnboarding` flag is stored in Supabase `user_metadata` and control
 
 `src/data/sample.js` still exists but only contains fallback/mock data for UI scaffolding.
 
+Key `user_preferences` columns (populated during onboarding): `favorite_genres[]`, `narrative_styles[]`, `group_values[]`, `depth_preference`, `openness_score`, `favorite_authors[]`, `preferred_languages[]`, `preferred_complexity[]`, `content_preferences[]`. These map directly to the onboarding screen inputs and feed the backend scoring vectors.
+
 ### Author search
 
 `OnbIdentityScreen` searches authors first from `user_preferences.favorite_authors` in Supabase. If fewer than 3 results match, it falls back to the **Open Library API** (`https://openlibrary.org/search/authors.json`). This is the only external API call made from the frontend other than the backend.
 
 ### Backend (FastAPI)
 
-`backend/app/main.py` — FastAPI service deployed on Render at `https://sti-readmatch.onrender.com` (defined in `backend/render.yaml`).
+`backend/app/main.py` — FastAPI service deployed on Render at `https://sti-readmatch-production.up.railway.app`. Deployment configs: `backend/render.yaml` (Render), `backend/railway.toml` + `backend/nixpacks.toml` (Railway alternative).
 
 Key backend modules:
 - `backend/app/models.py` — Pydantic request/response models (`RecommendationRequest`, `RevealRequest`, `TelegramRecommendRequest`, `TelegramExplainRequest`, `HealthResponse`)
@@ -85,7 +96,9 @@ API endpoints:
 - `min_miseria` — minimum individual score
 - `max_placer` — maximum score, clamped to 0 if below 0.4
 
-`backend/app/reveal.py` assigns reader archetypes (The Philosopher, The Explorer, Dark Academic, etc.) by rule matching, then calls the Anthropic API to generate personalized text. Falls back to a template string if `ANTHROPIC_API_KEY` is not set.
+`backend/app/reveal.py` assigns reader archetypes by rule matching, then calls the Anthropic API to generate personalized text. Falls back to a template string if `ANTHROPIC_API_KEY` is not set. The 12 archetypes (in Spanish) are: El Filósofo, La Romántica, El Explorador, El Académico Oscuro, El Visionario, El Aventurero, El Estratega, El Cronista, El Intrépido, El Soñador, El Empático, El Inconformista. `ARCHETYPE_PAIRS` defines complementary pairings for group diversity display.
+
+`src/lib/supabase.js` initializes the Supabase client (with AsyncStorage and platform detection for React Native). Import the client from here rather than constructing a new one.
 
 `src/lib/api.js` wraps all frontend→backend calls with a 30 s timeout and JSON error unwrapping. Use `apiFetch(path, options)` for any backend call. `src/utils/userStorage.js` calls `triggerGroupRecommendations()` after group creation/join.
 

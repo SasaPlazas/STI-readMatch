@@ -13,7 +13,7 @@ const isLocalApiUrl = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(
 export const apiBaseUrl =
   configuredApiBaseUrl && (!isLocalApiUrl || shouldUseLocalApi)
     ? configuredApiBaseUrl
-    : "https://sti-readmatch.onrender.com";
+    : "https://sti-readmatch-production.up.railway.app";
 
 export async function apiFetch(path, options = {}) {
   const url = `${apiBaseUrl}${path}`;

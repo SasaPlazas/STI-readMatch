@@ -25,6 +25,12 @@ ALL_TAGS = [
     "coming of age", "última humanidad", "caballero errante",
     "guardiana secreta", "beauty and the beast", "mal ancestral",
     "rebelión", "genio incomprendido",
+    # Tropos adicionales presentes en la tabla `books`
+    "segundas oportunidades", "grupo encontrado", "mejora personal",
+    "arquitectura de sistemas", "investigación periodística",
+    "sueño americano", "vampiros", "amor obsesivo", "torneo",
+    # Idiomas (para que preferred_languages tenga efecto en el score)
+    "español", "inglés", "japonés", "francés", "alemán", "portugués",
 ]
 
 ALL_STYLES = [

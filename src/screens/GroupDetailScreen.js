@@ -1,7 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { triggerGroupRecommendations } from "../utils/userStorage";
-import { useCallback, useEffect, useState } from "react";
-import { Alert } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert, Platform } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
@@ -157,6 +157,8 @@ export function GroupDetailScreen({ navigation, route }) {
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [recalculating, setRecalculating] = useState(false);
+  const [recError, setRecError] = useState(null);
+  const recTimeoutRef = useRef(null);
   const [copied, setCopied] = useState(false);
   const [metodo, setMetodo] = useState("media_sigma");
   const [joiningGroup, setJoiningGroup] = useState(false);
@@ -238,14 +240,28 @@ export function GroupDetailScreen({ navigation, route }) {
       const isStale = !generated_at || (Date.now() - new Date(generated_at).getTime() > ONE_HOUR);
 
       if (isStale && !skipTrigger) {
-        triggerGroupRecommendations(groupId, metodo).catch(() => {});
-        setTimeout(() => loadGroupData({ skipTrigger: true }), 3000);
+        clearTimeout(recTimeoutRef.current);
+        recTimeoutRef.current = setTimeout(() => {
+          setRecalculating(false);
+          setRecError('El backend tardó demasiado. Toca ↻ para reintentar.');
+        }, 60000);
+        triggerGroupRecommendations(groupId, metodo)
+          .then(() => setTimeout(() => loadGroupData({ skipTrigger: true }), 8000))
+          .catch((e) => {
+            clearTimeout(recTimeoutRef.current);
+            setRecalculating(false);
+            setRecError(e?.message ?? 'Error al calcular recomendaciones');
+          });
       }
 
       setGroup(g ?? null);
       setMembers(nextMembers);
       setRecs(nextRecs);
-      setRecalculating(nextRecs.length === 0);
+      if (nextRecs.length > 0) {
+        clearTimeout(recTimeoutRef.current);
+        setRecError(null);
+      }
+      setRecalculating(nextRecs.length === 0 && isStale && !skipTrigger);
     } catch (e) {
       console.warn("GroupDetail load error:", e.message);
     }
@@ -258,6 +274,7 @@ export function GroupDetailScreen({ navigation, route }) {
     }
     setLoading(true);
     loadGroupData().finally(() => setLoading(false));
+    return () => clearTimeout(recTimeoutRef.current);
   }, [groupId, metodo, loadGroupData]);
 
   useEffect(() => {
@@ -386,54 +403,52 @@ export function GroupDetailScreen({ navigation, route }) {
     }
   };
 
-  const onLeaveGroup = () => {
-    Alert.alert(
-      'Abandonar círculo',
-      '¿Seguro que quieres abandonar este círculo?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Abandonar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supabase
-                .from('group_members')
-                .delete()
-                .eq('group_id', groupId)
-                .eq('user_id', user.id);
-              navigation.navigate(routes.Home);
-            } catch (e) {
-              Alert.alert('Error', e?.message || 'No se pudo abandonar el círculo');
-            }
-          },
-        },
-      ],
-    );
+  const onLeaveGroup = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('¿Seguro que quieres abandonar este círculo?')
+      : await new Promise((resolve) =>
+          Alert.alert(
+            'Abandonar círculo',
+            '¿Seguro que quieres abandonar este círculo?',
+            [
+              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Abandonar', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          )
+        );
+    if (!confirmed) return;
+    try {
+      await supabase.from('group_members').delete().eq('group_id', groupId).eq('user_id', user.id);
+      navigation.navigate(routes.Home);
+    } catch (e) {
+      const msg = e?.message || 'No se pudo abandonar el círculo';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Error', msg);
+    }
   };
 
-  const onDeleteGroup = () => {
-    Alert.alert(
-      'Eliminar círculo',
-      'Esta acción es permanente. ¿Eliminar el círculo y todas sus recomendaciones?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await supabase.from('group_recommendations').delete().eq('group_id', groupId);
-              await supabase.from('group_members').delete().eq('group_id', groupId);
-              await supabase.from('recommendation_groups').update({ is_active: false }).eq('id', groupId);
-              navigation.navigate(routes.Home);
-            } catch (e) {
-              Alert.alert('Error', e?.message || 'No se pudo eliminar el círculo');
-            }
-          },
-        },
-      ],
-    );
+  const onDeleteGroup = async () => {
+    const confirmed = Platform.OS === 'web'
+      ? window.confirm('Esta acción es permanente. ¿Eliminar el círculo y todas sus recomendaciones?')
+      : await new Promise((resolve) =>
+          Alert.alert(
+            'Eliminar círculo',
+            'Esta acción es permanente. ¿Eliminar el círculo y todas sus recomendaciones?',
+            [
+              { text: 'Cancelar', style: 'cancel', onPress: () => resolve(false) },
+              { text: 'Eliminar', style: 'destructive', onPress: () => resolve(true) },
+            ],
+          )
+        );
+    if (!confirmed) return;
+    try {
+      await supabase.from('group_recommendations').delete().eq('group_id', groupId);
+      await supabase.from('group_members').delete().eq('group_id', groupId);
+      await supabase.from('recommendation_groups').update({ is_active: false }).eq('id', groupId);
+      navigation.navigate(routes.Home);
+    } catch (e) {
+      const msg = e?.message || 'No se pudo eliminar el círculo';
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert('Error', msg);
+    }
   };
 
   function handleTelegram() {
@@ -648,6 +663,10 @@ export function GroupDetailScreen({ navigation, route }) {
                 <ActivityIndicator color={colors.purple} />
                 <Text style={styles.recsLoadingText}>Calculando recomendaciones…</Text>
                 <Text style={styles.recsLoadingSubtext}>Esto tarda unos segundos la primera vez</Text>
+              </View>
+            ) : recError ? (
+              <View style={styles.emptyRecs}>
+                <Text style={[styles.emptyRecsText, { color: colors.coral }]}>{recError}</Text>
               </View>
             ) : (
               <View style={styles.emptyRecs}>
