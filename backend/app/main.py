@@ -124,7 +124,7 @@ async def supabase_healthcheck() -> dict[str, Any]:
 async def recompute_recommendations(payload: RecommendationRequest) -> dict[str, Any]:
     repo = get_repository()
     members = repo.fetch_group_members(payload.group_id)
-    books = repo.fetch_books(limit=50)
+    books = repo.fetch_books()
 
     if not members:
         raise HTTPException(status_code=404, detail="El grupo no tiene miembros o perfiles asociados.")

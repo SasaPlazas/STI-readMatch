@@ -62,11 +62,15 @@ class SupabaseRepository:
             self._raise_supabase_error("fetch_group_members", exc)
             return []
 
-    def fetch_books(self, limit: int = 50) -> list[dict[str, Any]]:
+    def fetch_books(self, limit: int = 1000) -> list[dict[str, Any]]:
         try:
             response = (
                 self.client.table("books")
-                .select("id, nombre_libro, autor, genero, complejidad_narrativa, trope, popularity_score, tags")
+                .select(
+                    "id, nombre_libro, autor, genero, "
+                    "complejidad_narrativa, trope, tags, "
+                    "popularity_score, content_vector"
+                )
                 .limit(limit)
                 .execute()
             )

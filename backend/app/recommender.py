@@ -52,43 +52,74 @@ def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
 
 
 def preferences_to_vector(preferences: dict[str, Any]) -> list[float]:
-    tags = preferences.get("favorite_genres") or preferences.get("tags") or []
-    normalized_tags = [normalize_tag(str(tag)) for tag in tags]
-    tag_vec = [1.0 if any(tag in normalized for normalized in normalized_tags) else 0.0 for tag in ALL_TAGS]
+    signals: set[str] = set()
 
-    depth_preference = str(preferences.get("depth_preference", "balanced")).lower()
-    depth = {"light": 0.25, "balanced": 0.5, "deep": 1.0, "experimental": 0.9}.get(depth_preference, 0.5)
-    openness = float(preferences.get("openness_score", 60) or 60) / 100.0
+    for g in (preferences.get("favorite_genres") or []):
+        signals.add(normalize_tag(str(g)))
 
-    styles = [s for s in [normalize_tag(str(s)) for s in (preferences.get("narrative_styles") or [])] if s]
-    style_vec = [
-        1.0 if any(canonical in style or style in canonical for style in styles) else 0.0
-        for canonical in ALL_STYLES
+    for s in (preferences.get("narrative_styles") or []):
+        signals.add(normalize_tag(str(s)))
+
+    for v in (preferences.get("group_values") or []):
+        signals.add(normalize_tag(str(v)))
+
+    for a in (preferences.get("favorite_authors") or []):
+        signals.add(normalize_tag(str(a)))
+
+    tag_vec = [
+        1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
+        for tag in ALL_TAGS
     ]
 
-    group_vals = [s for s in [normalize_tag(str(v)) for v in (preferences.get("group_values") or [])] if s]
-    group_vec = [1.0 if gv in group_vals else 0.0 for gv in ALL_GROUP_VALUES]
+    depth_preference = str(preferences.get("depth_preference") or "balanced").lower().strip()
+    depth = {
+        "light": 0.25,
+        "balanced": 0.5,
+        "deep": 1.0,
+        "experimental": 0.9,
+    }.get(depth_preference, 0.5)
 
-    return [*tag_vec, depth, openness, *style_vec, *group_vec]
+    openness = float(preferences.get("openness_score") or 60) / 100.0
+    openness = max(0.0, min(1.0, openness))
+
+    return [*tag_vec, depth, openness]
 
 
 def book_to_vector(book: dict[str, Any]) -> list[float]:
-    genre = normalize_tag(str(book.get("genero") or book.get("genre") or ""))
-    tag_vec = [1.0 if tag in genre else 0.0 for tag in ALL_TAGS]
+    signals: set[str] = set()
 
-    raw_complexity = str(book.get("complejidad_narrativa") or book.get("complexity") or "medium").lower()
-    complexity = {"low": 0.25, "medium": 0.5, "high": 1.0}.get(raw_complexity, 0.5)
+    raw_genre = book.get("genero") or ""
+    if raw_genre:
+        signals.add(normalize_tag(str(raw_genre)))
 
-    raw_pop = float(book.get("popularity_score") or 0)
-    pop_score = min(1.0, max(0.0, raw_pop / 100.0 if raw_pop > 1.0 else raw_pop))
+    raw_trope = book.get("trope") or ""
+    if raw_trope:
+        signals.add(normalize_tag(str(raw_trope)))
 
-    trope = normalize_tag(str(book.get("trope") or ""))
-    trope_vec = [
-        1.0 if trope and (canonical in trope or trope in canonical) else 0.0
-        for canonical in ALL_STYLES
+    raw_tags = book.get("tags") or []
+    if isinstance(raw_tags, str):
+        raw_tags = [t.strip() for t in raw_tags.replace("{", "").replace("}", "").split(",") if t.strip()]
+    for t in raw_tags:
+        signals.add(normalize_tag(str(t)))
+
+    tag_vec = [
+        1.0 if any(tag in signal or signal in tag for signal in signals) else 0.0
+        for tag in ALL_TAGS
     ]
 
-    return [*tag_vec, complexity, pop_score, *trope_vec, *([0.0] * len(ALL_GROUP_VALUES))]
+    raw_complexity = str(book.get("complejidad_narrativa") or "medium").lower().strip()
+    complexity = {"low": 0.25, "medium": 0.5, "high": 1.0}.get(raw_complexity, 0.5)
+
+    popularity = float(book.get("popularity_score") or 0.1)
+    popularity = max(0.0, min(1.0, popularity))
+
+    content_vec = book.get("content_vector")
+    if isinstance(content_vec, dict):
+        prebuilt = content_vec.get("vector")
+        if isinstance(prebuilt, list) and len(prebuilt) == len(ALL_TAGS) + 2:
+            return [float(v) for v in prebuilt]
+
+    return [*tag_vec, complexity, popularity]
 
 
 def aggregate_scores(scores: list[float], metodo: str) -> float:
