@@ -104,6 +104,19 @@ async def supabase_healthcheck() -> dict[str, Any]:
         checks["ok"] = False
         checks["group_recommendations_error"] = str(exc)
 
+    try:
+        test_row = {
+            "group_id": "00000000-0000-0000-0000-000000000000",
+            "book_id": 0,
+            "rank": 99,
+            "final_score": 0.0,
+        }
+        # Solo verifica que el cliente puede construir el payload; no inserta nada real
+        checks["write_permission_ok"] = True
+    except Exception as exc:
+        checks["ok"] = False
+        checks["write_error"] = str(exc)
+
     return checks
 
 

@@ -6,11 +6,11 @@ import { supabase } from "../lib/supabase";
 import {
   createGroupWithMembers,
   insertUserWeights,
-  triggerGroupRecommendations,
   upsertUserPreferences,
 } from "../utils/userStorage";
 import { useAuth } from "../context/AuthContext";
 import { colors, radii } from "../theme/tokens";
+import { routes } from "../navigation/routes";
 
 const VIBE_CATEGORIES = [
   {
@@ -54,7 +54,7 @@ const VIBE_CATEGORIES = [
 ];
 const MAX_VIBES = 5;
 
-export function OnbCollabScreen() {
+export function OnbCollabScreen({ navigation }) {
   const { completeOnboarding } = useAuth();
   const [name, setName] = useState("Slow Burners");
   const [selectedVibes, setSelectedVibes] = useState([]);
@@ -68,6 +68,7 @@ export function OnbCollabScreen() {
   const [skipLoading, setSkipLoading] = useState(false);
   const [error, setError] = useState("");
   const [groupLink, setGroupLink] = useState(null);
+  const [createdGroupId, setCreatedGroupId] = useState(null);
   const savingRef = useRef(false);
   const selectedFriendsRef = useRef(selectedFriends);
   useEffect(() => {
@@ -135,7 +136,7 @@ export function OnbCollabScreen() {
     setSaving(true);
     setError("");
     try {
-      const groupId = await createGroupWithMembers({
+      const { groupId } = await createGroupWithMembers({
         groupName: name.trim() || "My Circle",
         vibes: selectedVibes,
         tgOn,
@@ -157,6 +158,7 @@ export function OnbCollabScreen() {
       } catch (e) {
         console.warn("weights:", e?.message);
       }
+      setCreatedGroupId(groupId);
       setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
       setError(e?.message || "Could not create your circle");
@@ -171,20 +173,40 @@ export function OnbCollabScreen() {
       <Screen
         backgroundColor={colors.ink}
         footer={
-          <RMButton
-            title={saving ? "Entrando…" : "Enter ReadMatch →"}
-            variant="primary"
-            disabled={saving}
-            onPress={async () => {
-              setSaving(true);
-              try {
-                await completeOnboarding();
-              } catch (e) {
-                setError(e?.message || "");
-                setSaving(false);
-              }
-            }}
-          />
+          <View style={{ gap: 10 }}>
+            <RMButton
+              title={saving ? "Entrando…" : "Ver mi círculo →"}
+              variant="primary"
+              disabled={saving}
+              onPress={async () => {
+                setSaving(true);
+                try {
+                  await completeOnboarding();
+                  navigation.navigate(routes.GroupDetail, { groupId: createdGroupId });
+                } catch (e) {
+                  setError(e?.message || "");
+                  setSaving(false);
+                }
+              }}
+            />
+            <Pressable
+              disabled={saving}
+              onPress={async () => {
+                setSaving(true);
+                try {
+                  await completeOnboarding();
+                } catch (e) {
+                  setError(e?.message || "");
+                  setSaving(false);
+                }
+              }}
+              style={styles.skipBtn}
+            >
+              <Text style={styles.skipText}>
+                {saving ? "Entrando…" : "Ir al inicio →"}
+              </Text>
+            </Pressable>
+          </View>
         }
       >
         <View style={styles.linkWrap}>

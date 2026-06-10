@@ -14,6 +14,7 @@ import { RMButton } from "../components/RMButton";
 import { insertUserWeights, upsertUserPreferences } from "../utils/userStorage";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
+import { supabase } from "../lib/supabase";
 
 const STORIES = [
   { id: "dark", label: "Dark Academia", gradient: ["#2B1B69", "#16102E"], ink: colors.lime, mood: "velvet · ivy · candle" },
@@ -70,16 +71,43 @@ export function OnbIdentityScreen({ navigation }) {
     setAuthorSearching(true);
     const timer = setTimeout(async () => {
       try {
-        const url = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorQuery)}&limit=8`;
-        const res = await fetch(url);
-        const data = await res.json();
         const already = new Set(selectedAuthorsRef.current.map((a) => a.key));
-        setAuthorResults(
-          (data.docs ?? [])
+        const queryLower = authorQuery.toLowerCase();
+
+        // Primary: search authors from existing user preferences in Supabase
+        const { data } = await supabase
+          .from("user_preferences")
+          .select("favorite_authors")
+          .not("favorite_authors", "is", null)
+          .limit(20);
+
+        const seen = new Set();
+        const supabaseAuthors = [];
+        for (const row of (data ?? [])) {
+          for (const name of (row.favorite_authors ?? [])) {
+            if (typeof name !== "string" || !name) continue;
+            const lower = name.toLowerCase();
+            const key = `sb_${lower.replace(/\s+/g, "_")}`;
+            if (!seen.has(lower) && lower.includes(queryLower) && !already.has(key)) {
+              seen.add(lower);
+              supabaseAuthors.push({ key, name });
+            }
+          }
+        }
+
+        if (supabaseAuthors.length >= 3) {
+          setAuthorResults(supabaseAuthors.slice(0, 8));
+        } else {
+          // Fallback: Open Library when Supabase has fewer than 3 matches
+          const url = `https://openlibrary.org/search/authors.json?q=${encodeURIComponent(authorQuery)}&limit=8`;
+          const res = await fetch(url);
+          const olData = await res.json();
+          const supabaseNames = new Set(supabaseAuthors.map((a) => a.name.toLowerCase()));
+          const olResults = (olData.docs ?? [])
             .map((d) => ({ key: d.key, name: d.name }))
-            .filter((a) => a.name && !already.has(a.key))
-            .slice(0, 8)
-        );
+            .filter((a) => a.name && !already.has(a.key) && !supabaseNames.has(a.name.toLowerCase()));
+          setAuthorResults([...supabaseAuthors, ...olResults].slice(0, 8));
+        }
       } catch {
         setAuthorResults([]);
       } finally {
@@ -366,7 +394,7 @@ export function OnbIdentityScreen({ navigation }) {
         {selectedAuthors.length === 0 && authorResults.length === 0 && !authorSearching && (
           <View style={styles.emptyAuthors}>
             <Text style={styles.emptyAuthorsText}>
-              Type an author's name to search Open Library
+              Escribe un nombre para buscar autores
             </Text>
           </View>
         )}

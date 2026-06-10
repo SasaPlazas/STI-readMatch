@@ -1,8 +1,8 @@
 import { triggerGroupRecommendations } from "../utils/userStorage";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Screen } from "../components/Screen";
 import { NotificationsBell } from "../components/NotificationsBell";
 import { useAuth } from "../context/AuthContext";
@@ -156,7 +156,85 @@ export function GroupDetailScreen({ navigation, route }) {
   const [members, setMembers] = useState([]);
   const [recs, setRecs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [recalculating, setRecalculating] = useState(false);
   const [metodo, setMetodo] = useState("media_sigma");
+
+  const loadGroupData = useCallback(async ({ skipTrigger = false } = {}) => {
+    if (!groupId) return;
+    try {
+      const [{ data: g }, { data: memberRows }, { data: recRows }] =
+        await Promise.all([
+          supabase
+            .from("recommendation_groups")
+            .select("id, group_name, vibe, telegram_chat_id, created_by")
+            .eq("id", groupId)
+            .maybeSingle(),
+          supabase
+            .from("group_members")
+            .select("user_id, role")
+            .eq("group_id", groupId),
+          supabase
+            .from("group_recommendations")
+            .select(
+              "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id",
+            )
+            .eq("group_id", groupId)
+            .order("rank", { ascending: true })
+            .limit(3),
+        ]);
+
+      const userIds = (memberRows ?? [])
+        .map((row) => row.user_id)
+        .filter(Boolean);
+      let prefsByUserId = {};
+      if (userIds.length > 0) {
+        const { data: preferenceRows } = await supabase
+          .from("user_preferences")
+          .select("user_id, username, archetype")
+          .in("user_id", userIds);
+        prefsByUserId = Object.fromEntries(
+          (preferenceRows ?? []).map((row) => [row.user_id, row]),
+        );
+      }
+
+      const nextMembers = (memberRows ?? []).map((member) => ({
+        ...member,
+        user_preferences: prefsByUserId[member.user_id] ?? {},
+      }));
+
+      let nextRecs = recRows ?? [];
+      const bookIds = nextRecs.map((row) => row.book_id).filter(Boolean);
+      if (bookIds.length > 0) {
+        const { data: bookRows } = await supabase
+          .from("books")
+          .select("id, nombre_libro, autor, genero")
+          .in("id", bookIds);
+        const booksById = Object.fromEntries(
+          (bookRows ?? []).map((row) => [row.id, row]),
+        );
+        nextRecs = nextRecs.map((rec) => ({
+          ...rec,
+          books: booksById[rec.book_id] ?? {},
+        }));
+      }
+
+      if (!skipTrigger) {
+        try {
+          const remote = await triggerGroupRecommendations(groupId, metodo);
+          nextRecs = remote?.recommendations ?? nextRecs;
+        } catch (_) {
+          // Keep the latest persisted rows if the Python service is unavailable.
+        }
+      }
+
+      setGroup(g ?? null);
+      setMembers(nextMembers);
+      setRecs(nextRecs);
+      setRecalculating(nextRecs.length === 0);
+    } catch (e) {
+      console.warn("GroupDetail load error:", e.message);
+    }
+  }, [groupId, metodo]);
 
   useEffect(() => {
     if (!groupId) {
@@ -164,82 +242,28 @@ export function GroupDetailScreen({ navigation, route }) {
       return;
     }
     setLoading(true);
-    async function load() {
-      try {
-        const [{ data: g }, { data: memberRows }, { data: recRows }] =
-          await Promise.all([
-            supabase
-              .from("recommendation_groups")
-              .select("id, group_name, vibe, telegram_chat_id, created_by")
-              .eq("id", groupId)
-              .maybeSingle(),
-            supabase
-              .from("group_members")
-              .select("user_id, role")
-              .eq("group_id", groupId),
-            supabase
-              .from("group_recommendations")
-              .select(
-                "rank, final_score, content_score, collaborative_score, popularity_score, fairness_score, member_coverage, per_member_scores, explanation, book_id",
-              )
-              .eq("group_id", groupId)
-              .order("rank", { ascending: true })
-              .limit(3),
-          ]);
+    loadGroupData().finally(() => setLoading(false));
+  }, [groupId, metodo, loadGroupData]);
 
-        const userIds = (memberRows ?? [])
-          .map((row) => row.user_id)
-          .filter(Boolean);
-        let prefsByUserId = {};
-        if (userIds.length > 0) {
-          const { data: preferenceRows } = await supabase
-            .from("user_preferences")
-            .select("user_id, username, archetype")
-            .in("user_id", userIds);
-          prefsByUserId = Object.fromEntries(
-            (preferenceRows ?? []).map((row) => [row.user_id, row]),
-          );
+  useEffect(() => {
+    if (!groupId) return;
+    const channel = supabase
+      .channel(`group-recs-${groupId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'group_recommendations',
+          filter: `group_id=eq.${groupId}`,
+        },
+        () => {
+          loadGroupData({ skipTrigger: true });
         }
-
-        const nextMembers = (memberRows ?? []).map((member) => ({
-          ...member,
-          user_preferences: prefsByUserId[member.user_id] ?? {},
-        }));
-
-        let nextRecs = recRows ?? [];
-        const bookIds = nextRecs.map((row) => row.book_id).filter(Boolean);
-        if (bookIds.length > 0) {
-          const { data: bookRows } = await supabase
-            .from("books")
-            .select("id, nombre_libro, autor, genero")
-            .in("id", bookIds);
-          const booksById = Object.fromEntries(
-            (bookRows ?? []).map((row) => [row.id, row]),
-          );
-          nextRecs = nextRecs.map((rec) => ({
-            ...rec,
-            books: booksById[rec.book_id] ?? {},
-          }));
-        }
-
-        try {
-          const remote = await triggerGroupRecommendations(groupId, metodo);
-          nextRecs = remote?.recommendations ?? nextRecs;
-        } catch (_) {
-          // Keep the latest persisted rows if the Python service is unavailable.
-        }
-
-        setGroup(g ?? null);
-        setMembers(nextMembers);
-        setRecs(nextRecs);
-      } catch (e) {
-        console.warn("GroupDetail load error:", e.message);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [groupId, metodo]);
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [groupId, loadGroupData]);
 
   const groupName = group?.group_name ?? "—";
   const vibes = Array.isArray(group?.vibe) ? group.vibe : [];
@@ -354,12 +378,20 @@ export function GroupDetailScreen({ navigation, route }) {
           </View>
 
           {loading ? null : recs.length === 0 ? (
-            <View style={styles.emptyRecs}>
-              <Text style={styles.emptyRecsText}>
-                No recommendations yet — the engine runs once your circle has
-                members and preferences.
-              </Text>
-            </View>
+            recalculating ? (
+              <View style={styles.recsLoading}>
+                <ActivityIndicator color={colors.purple} />
+                <Text style={styles.recsLoadingText}>Calculando recomendaciones…</Text>
+                <Text style={styles.recsLoadingSubtext}>Esto tarda unos segundos la primera vez</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyRecs}>
+                <Text style={styles.emptyRecsText}>
+                  No recommendations yet — the engine runs once your circle has
+                  members and preferences.
+                </Text>
+              </View>
+            )
           ) : (
             <View style={styles.recList}>
               {recs.map((rec, i) => (
@@ -644,6 +676,25 @@ const styles = StyleSheet.create({
   },
   scorePctTop: { color: "rgba(22,16,46,0.6)" },
 
+  recsLoading: {
+    padding: 24,
+    borderRadius: radii.xl,
+    backgroundColor: "rgba(22,16,46,0.04)",
+    alignItems: "center",
+    gap: 10,
+  },
+  recsLoadingText: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.ink,
+    letterSpacing: -0.2,
+  },
+  recsLoadingSubtext: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "rgba(22,16,46,0.45)",
+    textAlign: "center",
+  },
   emptyRecs: {
     padding: 20,
     borderRadius: radii.xl,

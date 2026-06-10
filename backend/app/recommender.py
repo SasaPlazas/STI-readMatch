@@ -24,6 +24,19 @@ ALL_TAGS = [
     "slice-of-life",
 ]
 
+ALL_STYLES = [
+    "dark academia",
+    "cozy fantasy",
+    "psychological",
+    "emotional narratives",
+    "philosophical",
+    "fast thrillers",
+    "sci-fi worlds",
+    "character-driven",
+]
+
+ALL_GROUP_VALUES = ["fun", "perspectives", "harmony", "emo", "quality", "deep"]
+
 
 def normalize_tag(value: str) -> str:
     return value.strip().lower()
@@ -41,30 +54,41 @@ def cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
 def preferences_to_vector(preferences: dict[str, Any]) -> list[float]:
     tags = preferences.get("favorite_genres") or preferences.get("tags") or []
     normalized_tags = [normalize_tag(str(tag)) for tag in tags]
-
     tag_vec = [1.0 if any(tag in normalized for normalized in normalized_tags) else 0.0 for tag in ALL_TAGS]
 
     depth_preference = str(preferences.get("depth_preference", "balanced")).lower()
-    depth = {
-        "light": 0.25,
-        "balanced": 0.5,
-        "deep": 1.0,
-        "experimental": 0.9,
-    }.get(depth_preference, 0.5)
+    depth = {"light": 0.25, "balanced": 0.5, "deep": 1.0, "experimental": 0.9}.get(depth_preference, 0.5)
     openness = float(preferences.get("openness_score", 60) or 60) / 100.0
 
-    return [*tag_vec, depth, openness]
+    styles = [s for s in [normalize_tag(str(s)) for s in (preferences.get("narrative_styles") or [])] if s]
+    style_vec = [
+        1.0 if any(canonical in style or style in canonical for style in styles) else 0.0
+        for canonical in ALL_STYLES
+    ]
+
+    group_vals = [s for s in [normalize_tag(str(v)) for v in (preferences.get("group_values") or [])] if s]
+    group_vec = [1.0 if gv in group_vals else 0.0 for gv in ALL_GROUP_VALUES]
+
+    return [*tag_vec, depth, openness, *style_vec, *group_vec]
 
 
 def book_to_vector(book: dict[str, Any]) -> list[float]:
     genre = normalize_tag(str(book.get("genero") or book.get("genre") or ""))
     tag_vec = [1.0 if tag in genre else 0.0 for tag in ALL_TAGS]
-    complexity = {
-        "low": 0.25,
-        "medium": 0.5,
-        "high": 1.0,
-    }.get(str(book.get("complexity", "medium")).lower(), 0.5)
-    return [*tag_vec, complexity, 0.5]
+
+    raw_complexity = str(book.get("complejidad_narrativa") or book.get("complexity") or "medium").lower()
+    complexity = {"low": 0.25, "medium": 0.5, "high": 1.0}.get(raw_complexity, 0.5)
+
+    raw_pop = float(book.get("popularity_score") or 0)
+    pop_score = min(1.0, max(0.0, raw_pop / 100.0 if raw_pop > 1.0 else raw_pop))
+
+    trope = normalize_tag(str(book.get("trope") or ""))
+    trope_vec = [
+        1.0 if trope and (canonical in trope or trope in canonical) else 0.0
+        for canonical in ALL_STYLES
+    ]
+
+    return [*tag_vec, complexity, pop_score, *trope_vec, *([0.0] * len(ALL_GROUP_VALUES))]
 
 
 def aggregate_scores(scores: list[float], metodo: str) -> float:

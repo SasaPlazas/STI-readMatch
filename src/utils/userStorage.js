@@ -74,10 +74,15 @@ export async function createGroupWithMembers({
     );
     if (membErr) throw membErr;
   }
+  let recommendationsTriggered = false;
+  let recommendationsError = null;
   try {
     await triggerGroupRecommendations(groupId);
-  } catch {}
-  return groupId;
+    recommendationsTriggered = true;
+  } catch (e) {
+    recommendationsError = e?.message ?? 'FastAPI unavailable';
+  }
+  return { groupId, recommendationsTriggered, recommendationsError };
 }
 
 export async function joinGroupByLink(rawLink) {

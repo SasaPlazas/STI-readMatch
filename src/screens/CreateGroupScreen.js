@@ -4,10 +4,7 @@ import { Screen } from "../components/Screen";
 import { TopBar } from "../components/TopBar";
 import { RMButton } from "../components/RMButton";
 import { supabase } from "../lib/supabase";
-import {
-  createGroupWithMembers,
-  triggerGroupRecommendations,
-} from "../utils/userStorage";
+import { createGroupWithMembers } from "../utils/userStorage";
 import { colors, radii } from "../theme/tokens";
 import { routes } from "../navigation/routes";
 
@@ -65,6 +62,7 @@ export function CreateGroupScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [groupLink, setGroupLink] = useState(null);
+  const [createdGroupId, setCreatedGroupId] = useState(null);
   const savingRef = useRef(false);
   const selectedFriendsRef = useRef(selectedFriends);
   useEffect(() => {
@@ -121,12 +119,13 @@ export function CreateGroupScreen({ navigation }) {
     setSaving(true);
     setError("");
     try {
-      const groupId = await createGroupWithMembers({
+      const { groupId } = await createGroupWithMembers({
         groupName: name.trim() || "My Circle",
         vibes: selectedVibes,
         tgOn,
         friendUserIds: selectedFriends.map((f) => f.user_id),
       });
+      setCreatedGroupId(groupId);
       setGroupLink(`readmatch://join/${groupId}`);
     } catch (e) {
       setError(e?.message || "Could not create the circle");
@@ -141,11 +140,20 @@ export function CreateGroupScreen({ navigation }) {
       <Screen
         backgroundColor={colors.ink}
         footer={
-          <RMButton
-            title="Go to dashboard →"
-            variant="primary"
-            onPress={() => navigation.navigate(routes.Home)}
-          />
+          <View style={{ gap: 10 }}>
+            <RMButton
+              title="Ver recomendaciones →"
+              variant="primary"
+              onPress={() =>
+                navigation.navigate(routes.GroupDetail, { groupId: createdGroupId })
+              }
+            />
+            <RMButton
+              title="Go to dashboard →"
+              variant="ghost"
+              onPress={() => navigation.navigate(routes.Home)}
+            />
+          </View>
         }
       >
         <View style={styles.linkWrap}>

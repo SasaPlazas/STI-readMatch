@@ -32,6 +32,50 @@ ARCHETYPES = [
             lambda p: p.get("depth_preference") in ["deep", "experimental"],
         ],
     },
+    {
+        "label": "The Romantic",
+        "rules": [
+            lambda p: any(g in (p.get("favorite_genres") or []) for g in ["Romance", "Memoir"]),
+            lambda p: any(s in (p.get("narrative_styles") or []) for s in ["Emotional", "Character-driven"]),
+            lambda p: "emo" in (p.get("group_values") or []),
+            lambda p: p.get("depth_preference") in ["light", "balanced"],
+        ],
+    },
+    {
+        "label": "The Visionary",
+        "rules": [
+            lambda p: "Sci-Fi" in (p.get("narrative_styles") or []),
+            lambda p: "Sci-Fi" in (p.get("favorite_genres") or []),
+            lambda p: any(v in (p.get("group_values") or []) for v in ["perspectives", "deep"]),
+            lambda p: (p.get("openness_score") or 0) > 50,
+        ],
+    },
+    {
+        "label": "The Storyteller",
+        "rules": [
+            lambda p: "Fast Thrillers" in (p.get("narrative_styles") or []),
+            lambda p: any(g in (p.get("favorite_genres") or []) for g in ["Fantasy", "Mystery"]),
+            lambda p: p.get("depth_preference") in ["light", "balanced"],
+            lambda p: "fun" in (p.get("group_values") or []),
+        ],
+    },
+    {
+        "label": "The Cozy Reader",
+        "rules": [
+            lambda p: "Cozy Fantasy" in (p.get("narrative_styles") or []),
+            lambda p: p.get("depth_preference") == "light",
+            lambda p: any(v in (p.get("group_values") or []) for v in ["harmony", "emo"]),
+            lambda p: (p.get("openness_score") or 0) < 60,
+        ],
+    },
+    {
+        "label": "The Chronicler",
+        "rules": [
+            lambda p: len([g for g in ["History", "Memoir", "Politics"] if g in (p.get("favorite_genres") or [])]) >= 2,
+            lambda p: p.get("depth_preference") in ["balanced", "deep"],
+            lambda p: any(v in (p.get("group_values") or []) for v in ["perspectives", "quality"]),
+        ],
+    },
 ]
 
 
