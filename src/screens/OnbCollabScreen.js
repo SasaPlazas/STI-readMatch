@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Screen } from "../components/Screen";
@@ -69,6 +70,7 @@ export function OnbCollabScreen({ navigation }) {
   const [error, setError] = useState("");
   const [groupCode, setGroupCode] = useState(null);
   const [createdGroupId, setCreatedGroupId] = useState(null);
+  const [copied, setCopied] = useState(false);
   const savingRef = useRef(false);
   const selectedFriendsRef = useRef(selectedFriends);
   useEffect(() => {
@@ -218,15 +220,19 @@ export function OnbCollabScreen({ navigation }) {
           <Text style={styles.linkSub}>
             con tus amigos para que se unan al círculo.
           </Text>
-          <View style={styles.codeDisplayBox}>
+          <Pressable
+            style={[styles.codeDisplayBox, copied && styles.codeDisplayBoxCopied]}
+            onPress={async () => {
+              await Clipboard.setStringAsync(groupCode);
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            }}
+          >
             <Text style={styles.codeDisplayText}>{groupCode}</Text>
-          </View>
-          <TextInput
-            value={groupCode}
-            editable={false}
-            selectTextOnFocus
-            style={styles.codeReadonlyInput}
-          />
+            <Text style={styles.codeCopyHint}>
+              {copied ? '✓ Copiado' : 'Toca para copiar'}
+            </Text>
+          </Pressable>
           {tgOn && (
             <Text style={styles.linkTgNote}>
               The Telegram bot will activate when you connect it — placeholder
@@ -734,18 +740,12 @@ const styles = StyleSheet.create({
     color: colors.ink,
     letterSpacing: 6,
   },
-  codeReadonlyInput: {
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: radii.md,
-    padding: 14,
-    fontSize: 18,
-    fontWeight: "900",
-    color: colors.lime,
-    letterSpacing: 4,
-    borderWidth: 0.5,
-    borderColor: "rgba(212,255,61,0.3)",
-    textAlign: "center",
-    marginBottom: 8,
+  codeDisplayBoxCopied: { backgroundColor: '#D4FF3D' },
+  codeCopyHint: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: 'rgba(22,16,46,0.55)',
+    marginTop: 6,
   },
   linkTgNote: {
     marginTop: 20,

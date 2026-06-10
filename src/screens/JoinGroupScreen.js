@@ -1,76 +1,28 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Screen } from '../components/Screen';
 import { TopBar } from '../components/TopBar';
 import { joinGroupByCode } from '../utils/userStorage';
-import { supabase } from '../lib/supabase';
 import { colors, radii } from '../theme/tokens';
 import { routes } from '../navigation/routes';
-
-const BADGE_COLORS = [colors.purple, colors.coral, colors.lavender, colors.violet, colors.lime];
-
-function strHash(s = '') {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-  return h;
-}
-
-function groupInitials(name = '') {
-  return (
-    name.trim().split(/\s+/).slice(0, 2).map((w) => w[0] ?? '').join('').toUpperCase() || '?'
-  );
-}
-
-function groupBadgeColor(id = '') {
-  return BADGE_COLORS[strHash(id) % BADGE_COLORS.length];
-}
 
 export function JoinGroupScreen({ navigation }) {
   const [code, setCode] = useState('');
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState('');
-  const [joinSuccess, setJoinSuccess] = useState('');
-  const [joinedGroupId, setJoinedGroupId] = useState(null);
+  const [joinSuccess, setJoinSuccess] = useState(null); // { groupId, groupName }
 
-  const [nameQuery, setNameQuery] = useState('');
-  const [nameResults, setNameResults] = useState([]);
-  const [nameSearching, setNameSearching] = useState(false);
-
-  useEffect(() => {
-    if (nameQuery.length < 2) { setNameResults([]); return; }
-    const timer = setTimeout(async () => {
-      setNameSearching(true);
-      try {
-        const { data } = await supabase
-          .from('recommendation_groups')
-          .select('id, group_name, vibe, join_code')
-          .ilike('group_name', `%${nameQuery}%`)
-          .eq('is_active', true)
-          .limit(8);
-        setNameResults(data ?? []);
-      } catch {
-        setNameResults([]);
-      } finally {
-        setNameSearching(false);
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [nameQuery]);
-
-  const handleJoinByCode = async () => {
-    const trimmed = code.trim();
-    if (trimmed.length < 4 || joining) return;
+  const onJoinByCode = async () => {
+    if (code.trim().length < 4 || joining) return;
     setJoining(true);
     setJoinError('');
-    setJoinSuccess('');
-    setJoinedGroupId(null);
+    setJoinSuccess(null);
     try {
-      const result = await joinGroupByCode(trimmed);
-      setJoinSuccess(result.groupName ?? 'tu círculo');
-      setJoinedGroupId(result.groupId);
+      const result = await joinGroupByCode(code);
+      setJoinSuccess(result);
       setCode('');
     } catch (e) {
-      setJoinError(e?.message || 'Código inválido o grupo no encontrado');
+      setJoinError(e?.message || 'Código no encontrado');
     } finally {
       setJoining(false);
     }
@@ -88,18 +40,15 @@ export function JoinGroupScreen({ navigation }) {
         </Text>
       </View>
 
-      {/* SECCIÓN A — Código de grupo */}
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>CÓDIGO DEL GRUPO</Text>
-        <Text style={styles.cardTitle}>Ingresa el código de invitación</Text>
+      <View style={styles.inputCard}>
+        <Text style={styles.inputLabel}>CÓDIGO DEL GRUPO</Text>
         <View style={styles.inputRow}>
           <TextInput
             value={code}
             onChangeText={(v) => {
               setCode(v.toUpperCase());
               setJoinError('');
-              setJoinSuccess('');
-              setJoinedGroupId(null);
+              setJoinSuccess(null);
             }}
             placeholder="ej. RM-A3F7"
             placeholderTextColor="rgba(22,16,46,0.3)"
@@ -107,24 +56,18 @@ export function JoinGroupScreen({ navigation }) {
             autoCorrect={false}
             maxLength={8}
             style={styles.codeInput}
-            onSubmitEditing={handleJoinByCode}
+            onSubmitEditing={onJoinByCode}
           />
-          {code.length > 0 && (
-            <Pressable
-              onPress={() => { setCode(''); setJoinError(''); setJoinSuccess(''); setJoinedGroupId(null); }}
-              style={styles.clearBtn}
-            >
-              <Text style={styles.clearText}>✕</Text>
-            </Pressable>
-          )}
         </View>
         <View style={[styles.codeUnderline, code.length >= 4 && styles.codeUnderlineActive]} />
         {joinError ? <Text style={styles.errText}>{joinError}</Text> : null}
         {joinSuccess ? (
           <View style={styles.successBox}>
-            <Text style={styles.successText}>¡Te uniste a {joinSuccess}! 🎉</Text>
+            <Text style={styles.successText}>¡Entraste a {joinSuccess.groupName}! 🎉</Text>
             <Pressable
-              onPress={() => navigation.navigate(routes.GroupDetail, { groupId: joinedGroupId })}
+              onPress={() =>
+                navigation.navigate(routes.GroupDetail, { groupId: joinSuccess.groupId })
+              }
               style={styles.goHome}
             >
               <Text style={styles.goHomeText}>Ir al grupo →</Text>
@@ -132,76 +75,20 @@ export function JoinGroupScreen({ navigation }) {
           </View>
         ) : (
           <Pressable
-            onPress={handleJoinByCode}
-            disabled={code.length < 4 || joining}
-            style={[styles.joinBtn, (code.length < 4 || joining) && styles.joinBtnDisabled, { marginTop: 12 }]}
+            onPress={onJoinByCode}
+            disabled={code.length < 6 || joining}
+            style={[
+              styles.joinBtn,
+              (code.length < 6 || joining) && styles.joinBtnDisabled,
+              { marginTop: 12 },
+            ]}
           >
-            <Text style={styles.joinBtnText}>{joining ? 'Uniéndose…' : 'Unirse'}</Text>
+            {joining ? (
+              <ActivityIndicator color={colors.cream} />
+            ) : (
+              <Text style={styles.joinBtnText}>Unirse al círculo</Text>
+            )}
           </Pressable>
-        )}
-      </View>
-
-      {/* Divider */}
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>or search by name</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      {/* SECCIÓN B — Buscar por nombre */}
-      <View style={styles.inputCard}>
-        <Text style={styles.inputLabel}>GROUP NAME</Text>
-        <View style={styles.nameInputRow}>
-          <TextInput
-            value={nameQuery}
-            onChangeText={(v) => { setNameQuery(v); }}
-            placeholder="Buscar círculos por nombre…"
-            placeholderTextColor="rgba(22,16,46,0.3)"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.nameInput}
-          />
-          {nameSearching && <ActivityIndicator size="small" color={colors.purple} />}
-          {nameQuery.length > 0 && !nameSearching && (
-            <Pressable onPress={() => { setNameQuery(''); setNameResults([]); }} style={styles.clearBtn}>
-              <Text style={styles.clearText}>✕</Text>
-            </Pressable>
-          )}
-        </View>
-        {nameResults.length > 0 && (
-          <View style={styles.nameResults}>
-            {nameResults.map((item) => (
-              <Pressable
-                key={item.id}
-                onPress={() => navigation.navigate(routes.GroupDetail, { groupId: item.id })}
-                style={styles.nameResultRow}
-              >
-                <View style={[styles.nameResultBadge, { backgroundColor: groupBadgeColor(item.id) }]}>
-                  <Text style={styles.nameResultBadgeText}>{groupInitials(item.group_name)}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.nameResultName}>{item.group_name}</Text>
-                  {Array.isArray(item.vibe) && item.vibe.length > 0 && (
-                    <View style={styles.vibeChipsRow}>
-                      {item.vibe.slice(0, 3).map((v) => (
-                        <View key={v} style={styles.vibeChip}>
-                          <Text style={styles.vibeChipText}>{v}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                </View>
-                <View style={styles.nameResultBtn}>
-                  <Text style={styles.nameResultBtnText}>Ver →</Text>
-                </View>
-              </Pressable>
-            ))}
-          </View>
-        )}
-        {nameQuery.length >= 2 && !nameSearching && nameResults.length === 0 && (
-          <Text style={[styles.errText, { marginTop: 8 }]}>
-            No circles found matching "{nameQuery}"
-          </Text>
         )}
       </View>
     </Screen>
@@ -210,65 +97,59 @@ export function JoinGroupScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   header: { paddingHorizontal: 22, paddingBottom: 20 },
-  kicker: { fontSize: 10, fontWeight: '800', letterSpacing: 2, textTransform: 'uppercase', color: colors.purple, marginBottom: 8 },
+  kicker: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: colors.purple,
+    marginBottom: 8,
+  },
   title: { fontSize: 38, fontWeight: '900', color: colors.ink, letterSpacing: -1, lineHeight: 40 },
   titleItalic: { fontStyle: 'italic', fontWeight: '400', color: colors.purple },
-  card: { marginHorizontal: 22, marginBottom: 12, backgroundColor: colors.white, borderRadius: radii.xl, padding: 16, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
-  cardLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 1.6, textTransform: 'uppercase', color: 'rgba(22,16,46,0.45)', marginBottom: 4 },
-  cardTitle: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3, marginBottom: 12 },
-  linkRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: 'rgba(22,16,46,0.12)', marginBottom: 12 },
-  linkInput: { flex: 1, fontSize: 14, fontWeight: '700', color: colors.ink, paddingVertical: 8, letterSpacing: 0.2 },
-  clearBtn: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(22,16,46,0.08)', alignItems: 'center', justifyContent: 'center' },
-  clearText: { fontSize: 11, color: 'rgba(22,16,46,0.5)', fontWeight: '900' },
-  errText: { fontSize: 12, fontWeight: '700', color: colors.coral, marginBottom: 8 },
-  successBox: { backgroundColor: 'rgba(212,255,61,0.1)', borderRadius: radii.md, padding: 12, gap: 8, marginTop: 12 },
+  inputCard: { marginHorizontal: 22, marginBottom: 12 },
+  inputLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+    color: 'rgba(22,16,46,0.45)',
+    marginBottom: 10,
+  },
+  inputRow: { flexDirection: 'row', alignItems: 'center' },
+  codeInput: {
+    flex: 1,
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.ink,
+    letterSpacing: 4,
+    paddingVertical: 4,
+  },
+  codeUnderline: {
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: 'rgba(22,16,46,0.15)',
+    marginTop: 6,
+  },
+  codeUnderlineActive: { backgroundColor: colors.purple },
+  errText: { fontSize: 12, fontWeight: '700', color: colors.coral, marginTop: 8, marginBottom: 4 },
+  successBox: {
+    backgroundColor: 'rgba(212,255,61,0.1)',
+    borderRadius: radii.md,
+    padding: 12,
+    gap: 8,
+    marginTop: 12,
+  },
   successText: { fontSize: 13, fontWeight: '800', color: colors.ink },
   goHome: { alignSelf: 'flex-start' },
   goHomeText: { fontSize: 13, fontWeight: '800', color: colors.purple },
-  joinBtn: { borderRadius: radii.pill, paddingVertical: 12, paddingHorizontal: 20, backgroundColor: colors.ink, alignItems: 'center' },
+  joinBtn: {
+    borderRadius: radii.pill,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    backgroundColor: colors.ink,
+    alignItems: 'center',
+  },
   joinBtnDisabled: { backgroundColor: 'rgba(22,16,46,0.2)' },
   joinBtnText: { fontSize: 14, fontWeight: '900', color: colors.cream },
-  divider: { flexDirection: 'row', alignItems: 'center', gap: 10, marginHorizontal: 22, marginVertical: 16 },
-  dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(22,16,46,0.1)' },
-  dividerText: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', letterSpacing: 0.4 },
-  inputCard: { marginHorizontal: 22, marginBottom: 12 },
-  inputLabel: { fontSize: 9, fontWeight: '800', letterSpacing: 2, color: 'rgba(22,16,46,0.45)', marginBottom: 10 },
-  inputRow: { flexDirection: 'row', alignItems: 'center' },
-  codeInput: { flex: 1, fontSize: 32, fontWeight: '900', color: colors.ink, letterSpacing: 4, paddingVertical: 4 },
-  codeUnderline: { height: 2, borderRadius: 1, backgroundColor: 'rgba(22,16,46,0.15)', marginTop: 6 },
-  codeUnderlineActive: { backgroundColor: colors.purple },
-  foundCard: { marginHorizontal: 22, marginBottom: 16, backgroundColor: colors.lime, borderRadius: radii.xl, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: colors.ink },
-  foundBadge: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  foundBadgeText: { color: colors.ink, fontWeight: '900', fontSize: 16, letterSpacing: -0.5 },
-  foundName: { fontSize: 16, fontWeight: '900', color: colors.ink, letterSpacing: -0.3 },
-  foundMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.65)', marginTop: 2 },
-  foundMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  foundAvatars: { flexDirection: 'row' },
-  foundMembers: { fontSize: 11, fontWeight: '800', color: 'rgba(22,16,46,0.7)' },
-  previewBtn: { borderRadius: radii.pill, paddingVertical: 8, paddingHorizontal: 12, backgroundColor: colors.ink },
-  previewBtnText: { color: colors.lime, fontWeight: '900', fontSize: 12 },
-  browseList: { paddingHorizontal: 22, gap: 10 },
-  browseRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
-  browseBadge: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  browseBadgeText: { fontWeight: '900', fontSize: 15, letterSpacing: -0.3 },
-  browseName: { fontSize: 15, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
-  browseMood: { fontSize: 11, fontWeight: '700', color: 'rgba(22,16,46,0.55)', marginTop: 2 },
-  browsePace: { fontSize: 10, fontWeight: '700', color: 'rgba(22,16,46,0.4)', marginTop: 2 },
-  browseMeta: { alignItems: 'flex-end', gap: 6 },
-  browseAvatars: { flexDirection: 'row' },
-  browseCount: { fontSize: 10, fontWeight: '800', color: 'rgba(22,16,46,0.45)' },
-  browseArrow: { width: 26, height: 26, borderRadius: 8, backgroundColor: colors.cream, alignItems: 'center', justifyContent: 'center' },
-  browseArrowText: { fontSize: 18, fontWeight: '900', color: 'rgba(22,16,46,0.5)' },
-  nameInputRow: { flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1.5, borderBottomColor: 'rgba(22,16,46,0.12)', paddingBottom: 6, gap: 8 },
-  nameInput: { flex: 1, fontSize: 16, fontWeight: '700', color: colors.ink, paddingVertical: 4 },
-  nameResults: { marginTop: 10, gap: 8 },
-  nameResultRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: 'rgba(22,16,46,0.06)' },
-  nameResultBadge: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  nameResultBadgeText: { color: colors.ink, fontWeight: '900', fontSize: 14, letterSpacing: -0.3 },
-  nameResultName: { fontSize: 14, fontWeight: '900', color: colors.ink, letterSpacing: -0.2 },
-  nameResultBtn: { borderRadius: radii.pill, paddingVertical: 6, paddingHorizontal: 10, backgroundColor: colors.ink },
-  nameResultBtnText: { color: colors.cream, fontWeight: '900', fontSize: 11 },
-  vibeChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 },
-  vibeChip: { borderRadius: radii.pill, paddingVertical: 2, paddingHorizontal: 7, backgroundColor: 'rgba(124,91,255,0.1)' },
-  vibeChipText: { fontSize: 9, fontWeight: '800', color: colors.purple },
 });
