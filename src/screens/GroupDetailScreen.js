@@ -284,6 +284,57 @@ export function GroupDetailScreen({ navigation, route }) {
   const initials = groupInitials(groupName);
   const headerBg = badgeColor(groupId ?? "");
   const hasTelegram = Boolean(group?.telegram_chat_id);
+  const isAdmin = user?.id === group?.created_by;
+
+  const onLeaveGroup = () => {
+    Alert.alert(
+      'Abandonar círculo',
+      '¿Seguro que quieres abandonar este círculo?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Abandonar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase
+                .from('group_members')
+                .delete()
+                .eq('group_id', groupId)
+                .eq('user_id', user.id);
+              navigation.navigate(routes.Home);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo abandonar el círculo');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const onDeleteGroup = () => {
+    Alert.alert(
+      'Eliminar círculo',
+      'Esta acción es permanente. ¿Eliminar el círculo y todas sus recomendaciones?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supabase.from('group_recommendations').delete().eq('group_id', groupId);
+              await supabase.from('group_members').delete().eq('group_id', groupId);
+              await supabase.from('recommendation_groups').update({ is_active: false }).eq('id', groupId);
+              navigation.navigate(routes.Home);
+            } catch (e) {
+              Alert.alert('Error', e?.message || 'No se pudo eliminar el círculo');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   function handleTelegram() {
     Alert.alert(
@@ -298,7 +349,7 @@ export function GroupDetailScreen({ navigation, route }) {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* ── Header ── */}
         <LinearGradient colors={["#2B1B69", "#16102E"]} style={styles.header}>
-          <Pressable onPress={() => navigation.goBack()} style={styles.back}>
+          <Pressable onPress={() => navigation.canGoBack() ? navigation.goBack() : navigation.navigate(routes.Home)} style={styles.back}>
             <Text style={styles.backText}>‹</Text>
           </Pressable>
 
@@ -459,6 +510,21 @@ export function GroupDetailScreen({ navigation, route }) {
               </View>
               <Text style={styles.tgArrow}>›</Text>
             </Pressable>
+          </View>
+        )}
+
+        {/* ── Acciones destructivas ── */}
+        {!loading && group && (
+          <View style={styles.dangerSection}>
+            {isAdmin ? (
+              <Pressable onPress={onDeleteGroup} style={styles.dangerBtn}>
+                <Text style={styles.dangerBtnText}>Eliminar círculo</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={onLeaveGroup} style={styles.dangerBtn}>
+                <Text style={styles.dangerBtnText}>Abandonar círculo</Text>
+              </Pressable>
+            )}
           </View>
         )}
 
@@ -805,6 +871,27 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "rgba(251,246,235,0.3)",
     flexShrink: 0,
+  },
+  dangerSection: {
+    marginHorizontal: 22,
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(22,16,46,0.08)',
+  },
+  dangerBtn: {
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,126,107,0.35)',
+    alignItems: 'center',
+  },
+  dangerBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.coral,
+    letterSpacing: 0.1,
   },
 });
 
