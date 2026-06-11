@@ -19,6 +19,8 @@ from .recommender import score_group_books
 from .reveal import generate_reveal, ARCHETYPE_PAIRS
 from .supabase_service import SupabaseRepository
 
+import os
+import httpx
 
 app = FastAPI(title=settings.app_name, version="1.0.0")
 
@@ -242,3 +244,51 @@ async def telegram_connect(payload: dict[str, str]) -> dict[str, Any]:
         "group_id": group_id,
         "chat_id": chat_id,
     }
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request) -> dict:
+    data = await request.json()
+
+    message: dict = data.get("message") or {}
+    chat_id = (message.get("chat") or {}).get("id")
+    text: str = (message.get("text") or "").strip()
+
+    if not chat_id or not text:
+        return {"ok": True}
+
+    if text == "/recomendar" or text.startswith("/recomendar "):
+        repo = get_repository()
+        group = repo.fetch_group_by_telegram_chat(str(chat_id))
+
+        if not group:
+            await _send_telegram_message(
+                chat_id,
+                "Este grupo no está conectado a ReadMatch. Conéctalo desde la app en Ajustes del grupo."
+            )
+        else:
+            recs = repo.fetch_group_recommendations(group["id"])
+            if not recs:
+                await _send_telegram_message(chat_id, "Aún no hay recomendaciones para este grupo.")
+            else:
+                lines = [f"📚 Top picks para {group['group_name']}:"]
+                for rec in recs[:3]:
+                    book = rec.get("books") or {}
+                    title = book.get("nombre_libro", "Sin título")
+                    score = round(float(rec.get("final_score", 0)) * 100)
+                    lines.append(f"{rec.get('rank')}. {title} · {score}%")
+                await _send_telegram_message(chat_id, "\n".join(lines))
+
+    elif text == "/perfil":
+        await _send_telegram_message(
+            chat_id,
+            "Usa la app de ReadMatch para ver tu arquetipo lector."
+        )
+
+    return {"ok": True}
+
+
+async def _send_telegram_message(chat_id: int, text: str) -> None:
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    async with httpx.AsyncClient() as client:
+        await client.post(url, json={"chat_id": chat_id, "text": text})
